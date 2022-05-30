@@ -13,6 +13,10 @@ import pygame
 # If errors, maybe do this first:
 #  py -m pip uninstall pygame
 
+# TODO:
+# Show keyboard hint
+# Auto-move when only one target
+
 pygame.init()
 
 white = (255, 255, 255)
@@ -79,6 +83,13 @@ class Tube:
         r = self.ballGroups.pop(0)
         self.emptySlots += r.count
         return r
+
+    def removeBalls(self, count: int) -> None:
+        if self.ballGroups[0].count == count:
+            self.ballGroups.pop(0)
+        else:
+            self.ballGroups[0].count -= count
+        self.emptySlots += count
 
     def get_isEmpty(self) -> bool:
         return self.ballGroups.count == 0
@@ -164,6 +175,16 @@ class TubeSet:
                 column = 0
                 row += 1
 
+class MoveRecord:
+    source: Tube
+    target: Tube
+    count: int
+
+    def __init__(self, source: Tube, target: Tube):
+        self.count = source.peek().count
+        self.source = source
+        self.target = target
+
 
 window = pygame.display.set_mode((Spacing.ScreenWidth, Spacing.ScreenHeight))
 pygame.display.set_caption("Ball Sort")
@@ -180,6 +201,7 @@ tubeKeys = (
 tubes = TubeSet(GameData.FullTubes, GameData.EmptyTubes, GameData.BallsPerTube)
 source: Tube or None = None
 closing = False
+undoStack: list[MoveRecord] = []
 # main loop
 pendingMove = None
 while not closing:
@@ -187,6 +209,11 @@ while not closing:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             closing = True
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_LCTRL:
+            if any(undoStack):
+                moveToUndo = undoStack.pop()
+                moveToUndo.source.push(BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count))
+                moveToUndo.target.removeBalls(moveToUndo.count)
         elif event.type == pygame.KEYDOWN and event.key in tubeKeys:
             moveIndex = tubeKeys.index(event.key)
             if moveIndex != None:
@@ -199,6 +226,7 @@ while not closing:
                     if pendingMove == selectedTube:
                         pendingMove = None
                     elif selectedTube.canAddBallGroup(pendingMove.peek()):
+                        undoStack.append(MoveRecord(pendingMove, selectedTube))
                         selectedTube.push(pendingMove.pop())
                         pendingMove = None
                     # todo else beep or something
