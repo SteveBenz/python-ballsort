@@ -1,6 +1,5 @@
 from array import array
 import random
-from turtle import undo
 from typing import Optional
 import pygame
 
@@ -11,13 +10,12 @@ import pygame
 #  py -m pip uninstall pygame
 
 # TODO:
-# Auto-move when only one target
+# Support Mouse Moves
 # Suggest a move
 # Beep or something on bad move
 # Detect Win and Loss
 # Checkpoints
 # Restart
-# Support Mouse Moves
 # Keyboard hint should light for similar colors on top?
 # Use different shapes as well as colors
 
@@ -204,6 +202,18 @@ class TubeSet:
             if column == rowWidth:
                 column = 0
                 row += 1
+    
+    def tryGetAutoMove(self, source: Tube) -> Optional[Tube]:
+        emptyValidMove = None
+        for t in self.tubes:
+            if source is t: continue
+            if t.get_isEmpty():
+                if emptyValidMove is None:
+                    emptyValidMove = t
+            if t.canAddBallGroup(source.peek()):
+                return t
+        return emptyValidMove            
+                
 
 class MoveRecord:
     source: Tube
@@ -255,23 +265,21 @@ while not closing:
                 moveToRedo.target.push(BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count))
                 moveToRedo.source.removeBalls(moveToRedo.count)
                 undoStack.append(moveToRedo)
-        elif event.type == pygame.KEYDOWN and event.key in tubeKeys:
-            moveIndex = tubeKeys.index(event.key)
-            if moveIndex is not None:
+        elif event.type == pygame.KEYDOWN and (event.key in tubeKeys or event.key == pygame.K_SPACE):
+            if event.key == pygame.K_SPACE and pendingMove is not None:
+                selectedTube = tubes.tryGetAutoMove(pendingMove)
+            else:
+                moveIndex = tubeKeys.index(event.key)
                 selectedTube = tubes.tubes[moveIndex]
-                if pendingMove == None:
-                    if not selectedTube.get_isEmpty():
-                        pendingMove = selectedTube
-                    # todo else beep or something
-                else:
-                    if pendingMove == selectedTube:
-                        pendingMove = None
-                    elif selectedTube.canAddBallGroup(pendingMove.peek()):
-                        undoStack.append(MoveRecord(pendingMove, selectedTube))
-                        redoStack.clear()
-                        selectedTube.push(pendingMove.pop())
-                        pendingMove = None
-                    # todo else beep or something
+
+            if pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
+                pendingMove = selectedTube
+            elif pendingMove is not None and selectedTube is not None:
+                undoStack.append(MoveRecord(pendingMove, selectedTube))
+                redoStack.clear()
+                selectedTube.push(pendingMove.pop())
+                pendingMove = None
+            # todo else beep or something
     
     window.fill(black)
     tubes.draw(pendingMove, window)
