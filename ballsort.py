@@ -35,6 +35,7 @@ BallColors = (
 
 class GameColors:
     TubeBackground = (50,50,50)
+    ValidTargetTubeBackground = (70,70,70)
     WindowBackground = (0,0,0)
 
 class Spacing:
@@ -72,7 +73,7 @@ class Tube:
         self.ballGroups = list()
 
     def peek(self) -> BallGroup:
-        return self.ballGroups[0]
+        return None if len(self.ballGroups) == 0 else self.ballGroups[0]
 
     def pop(self) -> BallGroup:
         r = self.ballGroups.pop(0)
@@ -101,7 +102,8 @@ class Tube:
         tubeCenter = Spacing.TubeMarginLeft + column*(Spacing.CircleRadius*2 + Spacing.TubeHorizontalSpacing) + Spacing.CircleRadius
         tubeTotalHeight = GameData.BallsPerTube*Spacing.CircleRadius*2 + (GameData.BallsPerTube-1)*Spacing.CircleVerticalSpacing
         tubeTop = Spacing.tubeMarginTop + row*(tubeTotalHeight + Spacing.TubeVerticalSpacing)
-        pygame.draw.rect(window, GameColors.TubeBackground,
+        background = GameColors.ValidTargetTubeBackground if pendingMove != None and self.canAddBallGroup(pendingMove.peek()) else GameColors.TubeBackground
+        pygame.draw.rect(window, background,
             (tubeCenter - Spacing.CircleRadius - Spacing.TubeMarginAroundBalls,
             tubeTop - Spacing.TubeMarginAroundBalls,
             (Spacing.CircleRadius + Spacing.TubeMarginAroundBalls)*2,
