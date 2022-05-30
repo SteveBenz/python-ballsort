@@ -1,5 +1,6 @@
 from array import array
 import random
+from turtle import undo
 from typing import Optional
 import pygame
 
@@ -10,12 +11,15 @@ import pygame
 #  py -m pip uninstall pygame
 
 # TODO:
-# Redo
 # Auto-move when only one target
 # Suggest a move
+# Beep or something on bad move
 # Detect Win and Loss
+# Checkpoints
+# Restart
 # Support Mouse Moves
 # Keyboard hint should light for similar colors on top?
+# Use different shapes as well as colors
 
 pygame.init()
 
@@ -229,6 +233,7 @@ tubes = TubeSet(GameData.FullTubes, GameData.EmptyTubes, GameData.BallsPerTube)
 source: Optional[Tube] = None
 closing = False
 undoStack: list[MoveRecord] = []
+redoStack: list[MoveRecord] = []
 # main loop
 pendingMove = None
 while not closing:
@@ -243,6 +248,13 @@ while not closing:
                 moveToUndo = undoStack.pop()
                 moveToUndo.source.push(BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count))
                 moveToUndo.target.removeBalls(moveToUndo.count)
+                redoStack.append(moveToUndo)
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_LCTRL:
+            if any(redoStack):
+                moveToRedo = redoStack.pop()
+                moveToRedo.target.push(BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count))
+                moveToRedo.source.removeBalls(moveToRedo.count)
+                undoStack.append(moveToRedo)
         elif event.type == pygame.KEYDOWN and event.key in tubeKeys:
             moveIndex = tubeKeys.index(event.key)
             if moveIndex is not None:
@@ -256,6 +268,7 @@ while not closing:
                         pendingMove = None
                     elif selectedTube.canAddBallGroup(pendingMove.peek()):
                         undoStack.append(MoveRecord(pendingMove, selectedTube))
+                        redoStack.clear()
                         selectedTube.push(pendingMove.pop())
                         pendingMove = None
                     # todo else beep or something
