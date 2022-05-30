@@ -39,6 +39,7 @@ class GameColors:
 
 class Spacing:
     CircleRadius = 10
+    MatchCircleRadius = 2
     tubeMarginTop = 50
     TubeMarginLeft = CircleRadius
     CircleVerticalSpacing = CircleRadius/5
@@ -96,7 +97,7 @@ class Tube:
             self.ballGroups.insert(0, group)
         self.emptySlots -= group.count
 
-    def draw(self, row: int, column: int, movePending: bool) -> None:
+    def draw(self, row: int, column: int, pendingMove: 'Tube') -> None:
         tubeCenter = Spacing.TubeMarginLeft + column*(Spacing.CircleRadius*2 + Spacing.TubeHorizontalSpacing) + Spacing.CircleRadius
         tubeTotalHeight = GameData.BallsPerTube*Spacing.CircleRadius*2 + (GameData.BallsPerTube-1)*Spacing.CircleVerticalSpacing
         tubeTop = Spacing.tubeMarginTop + row*(tubeTotalHeight + Spacing.TubeVerticalSpacing)
@@ -110,8 +111,10 @@ class Tube:
         y = tubeTop + self.emptySlots*(2*Spacing.CircleRadius + Spacing.CircleVerticalSpacing) + Spacing.CircleRadius
         for group in self.ballGroups:
             for i in range(group.count):
-                offset = Spacing.CircleRadius if movePending and group == self.ballGroups[0] else 0
+                offset = Spacing.CircleRadius if pendingMove == self and group == self.ballGroups[0] else 0
                 pygame.draw.circle(window, BallColors[group.color], [x,y-offset], Spacing.CircleRadius)
+                if pendingMove != None and pendingMove.peek().color == group.color:
+                    pygame.draw.circle(window, (0,0,0), [x,y-offset], Spacing.MatchCircleRadius)
                 y += 2*Spacing.CircleRadius + Spacing.CircleVerticalSpacing
 
 class TubeSet:
@@ -153,7 +156,7 @@ class TubeSet:
         row = 0
         column = 0
         for tube in self.tubes:
-            tube.draw(row, column, pendingMove == tube)
+            tube.draw(row, column, pendingMove)
             column += 1
             if column == rowWidth:
                 column = 0
@@ -182,7 +185,7 @@ while not closing:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             closing = True
-        elif event.type == pygame.KEYDOWN:
+        elif event.type == pygame.KEYDOWN and event.key in tubeKeys:
             moveIndex = tubeKeys.index(event.key)
             if moveIndex != None:
                 selectedTube = tubes.tubes[moveIndex]
