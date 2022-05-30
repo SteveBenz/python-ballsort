@@ -10,13 +10,12 @@ import pygame
 #  py -m pip uninstall pygame
 
 # TODO:
-# Show keyboard hint
 # Redo
 # Auto-move when only one target
 # Suggest a move
 # Detect Win and Loss
 # Support Mouse Moves
-# Better Colors
+# Keyboard hint should light for similar colors on top?
 
 pygame.init()
 
@@ -47,17 +46,21 @@ BallColors = (
     (169, 169, 169), # dark gray
 )
 
-keyboardHint = (
+keyboardHintCharacters = (
     ('1', '2', '3', '4', '5'),
     ('q', 'w', 'e', 'r', 't'),
     ('a', 's', 'd', 'f', 'g'),
     ('z', 'x', 'c', 'v', 'b'))
 
+pygame.font.init()
+arialFont = pygame.font.SysFont('arial', 16)
 
 class GameColors:
     TubeBackground = (50,50,50)
     ValidTargetTubeBackground = (70,70,70)
     WindowBackground = (0,0,0)
+    KeyboardHintNormal = (128, 128, 128)
+    KeyboardHintCanMoveTo = (255, 255, 255)
 
 class Spacing:
     CircleRadius = 10
@@ -130,7 +133,8 @@ class Tube:
         tubeCenter = Spacing.TubeMarginLeft + column*(Spacing.CircleRadius*2 + Spacing.TubeHorizontalSpacing) + Spacing.CircleRadius
         tubeTotalHeight = GameData.BallsPerTube*Spacing.CircleRadius*2 + (GameData.BallsPerTube-1)*Spacing.CircleVerticalSpacing
         tubeTop = Spacing.tubeMarginTop + row*(tubeTotalHeight + Spacing.TubeVerticalSpacing)
-        background = GameColors.ValidTargetTubeBackground if pendingMove != None and self.canAddBallGroup(pendingMove.peek()) else GameColors.TubeBackground
+        tubeCanBeNextMove = pendingMove != None and self.canAddBallGroup(pendingMove.peek())
+        background = GameColors.ValidTargetTubeBackground if tubeCanBeNextMove else GameColors.TubeBackground
         pygame.draw.rect(window, background,
             pygame.Rect(tubeCenter - Spacing.CircleRadius - Spacing.TubeMarginAroundBalls,
             tubeTop - Spacing.TubeMarginAroundBalls,
@@ -146,6 +150,14 @@ class Tube:
                 if pendingMove != None and pendingMove.peek().color == group.color:
                     pygame.draw.circle(window, (0,0,0), [x,y-offset], Spacing.MatchCircleRadius)
                 y += 2*Spacing.CircleRadius + Spacing.CircleVerticalSpacing
+
+        hintColor = GameColors.KeyboardHintCanMoveTo if tubeCanBeNextMove else GameColors.KeyboardHintNormal
+        hintImage = arialFont.render(keyboardHintCharacters[row][column], True, hintColor)
+        hintImageRect = hintImage.get_rect()
+        offset = Spacing.CircleRadius if pendingMove == self else 0
+        window.blit(hintImage,
+            (tubeCenter - hintImageRect.width/2, tubeTop - Spacing.CircleVerticalSpacing - hintImageRect.height - offset,
+            hintImageRect.width, hintImageRect.height))
 
 class TubeSet:
     tubes: list[Tube]
