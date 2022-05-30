@@ -1,10 +1,6 @@
 from array import array
-from asyncio import constants
-from cmath import rect
-from operator import truediv
 import random
-import sys
-from turtle import circle, screensize
+from typing import Optional
 import pygame
 
 # Gotta do this first:
@@ -15,6 +11,7 @@ import pygame
 
 # TODO:
 # Show keyboard hint
+# Redo
 # Auto-move when only one target
 
 pygame.init()
@@ -77,7 +74,7 @@ class Tube:
         self.ballGroups = list()
 
     def peek(self) -> BallGroup:
-        return None if len(self.ballGroups) == 0 else self.ballGroups[0]
+        return self.ballGroups[0]
 
     def pop(self) -> BallGroup:
         r = self.ballGroups.pop(0)
@@ -92,10 +89,10 @@ class Tube:
         self.emptySlots += count
 
     def get_isEmpty(self) -> bool:
-        return self.ballGroups.count == 0
+        return not any(self.ballGroups)
 
     def get_isComplete(self) -> bool:
-        return self.ballGroups.count == 1 and self.emptySlots == 0
+        return self.emptySlots == GameData.BallsPerTube or (len(self.ballGroups) == 1 and self.emptySlots == 0)
 
     def canAddBallGroup(self, group: BallGroup) -> bool:
         if self.emptySlots < group.count: return False
@@ -109,13 +106,13 @@ class Tube:
             self.ballGroups.insert(0, group)
         self.emptySlots -= group.count
 
-    def draw(self, row: int, column: int, pendingMove: 'Tube') -> None:
+    def draw(self, row: int, column: int, pendingMove: Optional['Tube']) -> None:
         tubeCenter = Spacing.TubeMarginLeft + column*(Spacing.CircleRadius*2 + Spacing.TubeHorizontalSpacing) + Spacing.CircleRadius
         tubeTotalHeight = GameData.BallsPerTube*Spacing.CircleRadius*2 + (GameData.BallsPerTube-1)*Spacing.CircleVerticalSpacing
         tubeTop = Spacing.tubeMarginTop + row*(tubeTotalHeight + Spacing.TubeVerticalSpacing)
         background = GameColors.ValidTargetTubeBackground if pendingMove != None and self.canAddBallGroup(pendingMove.peek()) else GameColors.TubeBackground
         pygame.draw.rect(window, background,
-            (tubeCenter - Spacing.CircleRadius - Spacing.TubeMarginAroundBalls,
+            pygame.Rect(tubeCenter - Spacing.CircleRadius - Spacing.TubeMarginAroundBalls,
             tubeTop - Spacing.TubeMarginAroundBalls,
             (Spacing.CircleRadius + Spacing.TubeMarginAroundBalls)*2,
             tubeTotalHeight + 2*Spacing.TubeMarginAroundBalls))
@@ -123,7 +120,7 @@ class Tube:
         x = tubeCenter
         y = tubeTop + self.emptySlots*(2*Spacing.CircleRadius + Spacing.CircleVerticalSpacing) + Spacing.CircleRadius
         for group in self.ballGroups:
-            for i in range(group.count):
+            for _ in range(group.count):
                 offset = Spacing.CircleRadius if pendingMove == self and group == self.ballGroups[0] else 0
                 pygame.draw.circle(window, BallColors[group.color], [x,y-offset], Spacing.CircleRadius)
                 if pendingMove != None and pendingMove.peek().color == group.color:
@@ -161,10 +158,7 @@ class TubeSet:
         if slot.get_isEmpty(): return list()
         return list(filter(lambda t: t != slot and slot.canAddBallGroup(slot.peek()), self.tubes))
 
-    def move(self, frm: Tube, to: Tube):
-        to.push(frm.frm.pop())
-    
-    def draw(self, pendingMove: Tube, screen: pygame.Surface):
+    def draw(self, pendingMove: Optional[Tube], screen: pygame.surface.Surface):
         rowWidth = 5
         row = 0
         column = 0
@@ -181,7 +175,8 @@ class MoveRecord:
     count: int
 
     def __init__(self, source: Tube, target: Tube):
-        self.count = source.peek().count
+        sourceTop = source.peek()
+        self.count = sourceTop.count
         self.source = source
         self.target = target
 
@@ -199,7 +194,7 @@ tubeKeys = (
 )
 
 tubes = TubeSet(GameData.FullTubes, GameData.EmptyTubes, GameData.BallsPerTube)
-source: Tube or None = None
+source: Optional[Tube] = None
 closing = False
 undoStack: list[MoveRecord] = []
 # main loop
@@ -209,6 +204,8 @@ while not closing:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             closing = True
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            pendingMove = None
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_LCTRL:
             if any(undoStack):
                 moveToUndo = undoStack.pop()
@@ -216,7 +213,7 @@ while not closing:
                 moveToUndo.target.removeBalls(moveToUndo.count)
         elif event.type == pygame.KEYDOWN and event.key in tubeKeys:
             moveIndex = tubeKeys.index(event.key)
-            if moveIndex != None:
+            if moveIndex is not None:
                 selectedTube = tubes.tubes[moveIndex]
                 if pendingMove == None:
                     if not selectedTube.get_isEmpty():
