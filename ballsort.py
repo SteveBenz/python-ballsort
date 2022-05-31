@@ -10,10 +10,8 @@ import pygame
 #  py -m pip uninstall pygame
 
 # TODO:
-# Checkpoints - maybe ctrl+shift+z undoes until there's a free tube?
 # Animated movement
 # Save State
-# Beep or something on bad move
 # Restart - can just exit the game.
 # New Game
 # Detect Win and Loss
@@ -230,7 +228,7 @@ class TubeSet:
             if t.get_isEmpty():
                 if emptyValidMove is None:
                     emptyValidMove = t
-            if t.canAddBallGroup(source.peek()):
+            elif t.canAddBallGroup(source.peek()):
                 return t
         return emptyValidMove            
     
@@ -305,7 +303,7 @@ def doMove(selectedTube: Tube):
         redoStack.clear()
         selectedTube.push(pendingMove.pop())
         pendingMove = None
-    else:
+    elif not selectedTube.get_isEmpty():
         pendingMove = selectedTube
 
 def undo():
