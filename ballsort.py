@@ -259,6 +259,9 @@ class TubeSet:
             if y >= rowTop and y <= rowBottom:
                 return self.tubes[row*GameData.TubesPerRow+column]
         return None
+    
+    def numEmptyTubes(self) -> int:
+        return sum(1 for t in self.tubes if t.get_isEmpty())
 
 class MoveRecord:
     source: Tube
@@ -305,6 +308,12 @@ def doMove(selectedTube: Tube):
     else:
         pendingMove = selectedTube
 
+def undo():
+    moveToUndo = undoStack.pop()
+    moveToUndo.source.push(BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count))
+    moveToUndo.target.removeBalls(moveToUndo.count)
+    redoStack.append(moveToUndo)
+
 # main loop
 while not closing:
     # event handling, gets all event from the event queue
@@ -315,13 +324,13 @@ while not closing:
             pendingMove = None
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
             pendingMove = tubes.tryFindMove()
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_LCTRL:
-            if any(undoStack):
-                moveToUndo = undoStack.pop()
-                moveToUndo.source.push(BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count))
-                moveToUndo.target.removeBalls(moveToUndo.count)
-                redoStack.append(moveToUndo)
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_LCTRL:
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL and event.mod & pygame.KMOD_SHIFT:
+            oldEmptyCount = tubes.numEmptyTubes()
+            while any(undoStack) and tubes.numEmptyTubes() <= oldEmptyCount:
+                undo()
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL:
+            if any(undoStack): undo()
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_CTRL:
             if any(redoStack):
                 moveToRedo = redoStack.pop()
                 moveToRedo.target.push(BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count))
