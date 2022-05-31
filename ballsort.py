@@ -1,6 +1,6 @@
 from array import array
 import random
-from typing import Optional
+from typing import Optional, Tuple
 import pygame
 
 # Gotta do this first:
@@ -10,14 +10,14 @@ import pygame
 #  py -m pip uninstall pygame
 
 # TODO:
-# Support Mouse Moves
-# Suggest a move
+# Restart
+# New Game
+# Checkpoints - maybe ctrl+shift+z undoes until there's a free tube?
+# Use different shapes as well as colors
+# Save State
 # Beep or something on bad move
 # Detect Win and Loss
-# Checkpoints
-# Restart
 # Keyboard hint should light for similar colors on top?
-# Use different shapes as well as colors
 
 pygame.init()
 
@@ -69,8 +69,8 @@ class Spacing:
     MatchCircleRadius = 2
     tubeMarginTop = 50
     TubeMarginLeft = CircleRadius
-    CircleVerticalSpacing = CircleRadius/5
-    TubeHorizontalSpacing = CircleRadius*1.5
+    CircleVerticalSpacing = CircleRadius//5
+    TubeHorizontalSpacing = CircleRadius + CircleRadius//2
     TubeVerticalSpacing = CircleRadius*3
     TubeMarginAroundBalls = 3
 
@@ -81,6 +81,7 @@ class GameData:
     BallsPerTube = 6
     FullTubes = 16
     EmptyTubes = 3
+    TubesPerRow = 5
 
 class BallGroup:
     color: int
@@ -193,7 +194,7 @@ class TubeSet:
         return list(filter(lambda t: t != slot and slot.canAddBallGroup(slot.peek()), self.tubes))
 
     def draw(self, pendingMove: Optional[Tube], screen: pygame.surface.Surface):
-        rowWidth = 5
+        rowWidth = GameData.TubesPerRow
         row = 0
         column = 0
         for tube in self.tubes:
@@ -213,7 +214,32 @@ class TubeSet:
             if t.canAddBallGroup(source.peek()):
                 return t
         return emptyValidMove            
-                
+    
+    def tryFindMove(self) -> Optional[Tube]:
+        for source in self.tubes:
+            if source.get_isEmpty():
+                continue
+            sourcePeek = source.peek()
+            for target in self.tubes:
+                if target is not source and target.canAddBallGroup(sourcePeek):
+                    return source
+        return None
+
+    def tryFindTubeByPosition(self, position: Tuple[int,int]) -> Optional[Tube]:
+        (x,y) = position
+        tubesLeft: int = Spacing.TubeMarginLeft - Spacing.TubeHorizontalSpacing//2
+        tubesRight = Spacing.TubeMarginLeft + (GameData.TubesPerRow-1)*Spacing.CircleRadius*2 + GameData.TubesPerRow*Spacing.TubeHorizontalSpacing
+        tubeHeight = GameData.BallsPerTube*Spacing.CircleRadius*2 + (GameData.BallsPerTube-1)*Spacing.CircleVerticalSpacing
+        tubeTop = Spacing.tubeMarginTop - Spacing.TubeMarginAroundBalls
+        if x < tubesLeft or x > tubesRight:
+            return None
+        column:int = (x - tubesLeft)//(Spacing.CircleRadius*2 + Spacing.TubeHorizontalSpacing)
+        for row in range(4):
+            rowTop = tubeTop+row*(tubeHeight+Spacing.TubeVerticalSpacing)
+            rowBottom = rowTop + tubeHeight + 2*Spacing.TubeMarginAroundBalls
+            if y >= rowTop and y <= rowBottom:
+                return self.tubes[row*GameData.TubesPerRow+column]
+        return None
 
 class MoveRecord:
     source: Tube
@@ -244,8 +270,22 @@ source: Optional[Tube] = None
 closing = False
 undoStack: list[MoveRecord] = []
 redoStack: list[MoveRecord] = []
+pendingMove: Optional[Tube] = None
+
+def doMove(selectedTube: Tube):
+    global pendingMove
+    if pendingMove is selectedTube:
+        pendingMove = None
+    elif pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
+        pendingMove = selectedTube
+    elif pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroup(pendingMove.peek()):
+        undoStack.append(MoveRecord(pendingMove, selectedTube))
+        redoStack.clear()
+        selectedTube.push(pendingMove.pop())
+        pendingMove = None
+    # todo else beep or something
+
 # main loop
-pendingMove = None
 while not closing:
     # event handling, gets all event from the event queue
     for event in pygame.event.get():
@@ -253,6 +293,8 @@ while not closing:
             closing = True
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             pendingMove = None
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
+            pendingMove = tubes.tryFindMove()
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_LCTRL:
             if any(undoStack):
                 moveToUndo = undoStack.pop()
@@ -266,20 +308,21 @@ while not closing:
                 moveToRedo.source.removeBalls(moveToRedo.count)
                 undoStack.append(moveToRedo)
         elif event.type == pygame.KEYDOWN and (event.key in tubeKeys or event.key == pygame.K_SPACE):
-            if event.key == pygame.K_SPACE and pendingMove is not None:
-                selectedTube = tubes.tryGetAutoMove(pendingMove)
+            if event.key == pygame.K_SPACE:
+                selectedTube = None if pendingMove is None else tubes.tryGetAutoMove(pendingMove)
             else:
-                moveIndex = tubeKeys.index(event.key)
-                selectedTube = tubes.tubes[moveIndex]
+                selectedTube = tubes.tubes[tubeKeys.index(event.key)]
 
-            if pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
-                pendingMove = selectedTube
-            elif pendingMove is not None and selectedTube is not None:
-                undoStack.append(MoveRecord(pendingMove, selectedTube))
-                redoStack.clear()
-                selectedTube.push(pendingMove.pop())
-                pendingMove = None
-            # todo else beep or something
+            if selectedTube is not None:
+                doMove(selectedTube)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            (x,y) = event.pos
+            selectedTube: Optional[Tube] = tubes.tryFindTubeByPosition((x,y))
+            if selectedTube is not None:
+                doMove(selectedTube)
+            
+            #if selectedTube is not None:
+            #    doMove(selectedTube)
     
     window.fill(black)
     tubes.draw(pendingMove, window)
