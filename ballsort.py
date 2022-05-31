@@ -1,6 +1,4 @@
 from array import array
-from cmath import rect
-from multiprocessing.context import SpawnContext
 import random
 from typing import Optional, Tuple
 import pygame
@@ -13,10 +11,10 @@ import pygame
 
 # TODO:
 # Checkpoints - maybe ctrl+shift+z undoes until there's a free tube?
-# Use different shapes as well as colors
+# Animated movement
 # Save State
 # Beep or something on bad move
-# Restart
+# Restart - can just exit the game.
 # New Game
 # Detect Win and Loss
 # Keyboard hint should light for similar colors on top?
@@ -304,7 +302,8 @@ def doMove(selectedTube: Tube):
         redoStack.clear()
         selectedTube.push(pendingMove.pop())
         pendingMove = None
-    # todo else beep or something
+    else:
+        pendingMove = selectedTube
 
 # main loop
 while not closing:
