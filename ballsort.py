@@ -1,4 +1,6 @@
 from array import array
+from cmath import rect
+from multiprocessing.context import SpawnContext
 import random
 from typing import Optional, Tuple
 import pygame
@@ -10,12 +12,12 @@ import pygame
 #  py -m pip uninstall pygame
 
 # TODO:
-# Restart
-# New Game
 # Checkpoints - maybe ctrl+shift+z undoes until there's a free tube?
 # Use different shapes as well as colors
 # Save State
 # Beep or something on bad move
+# Restart
+# New Game
 # Detect Win and Loss
 # Keyboard hint should light for similar colors on top?
 
@@ -73,7 +75,6 @@ class Spacing:
     TubeHorizontalSpacing = CircleRadius + CircleRadius//2
     TubeVerticalSpacing = CircleRadius*3
     TubeMarginAroundBalls = 3
-
     ScreenWidth = 650
     ScreenHeight = 700
 
@@ -149,10 +150,30 @@ class Tube:
         for group in self.ballGroups:
             for _ in range(group.count):
                 offset = Spacing.CircleRadius if pendingMove == self and group == self.ballGroups[0] else 0
-                pygame.draw.circle(window, BallColors[group.color], [x,y-offset], Spacing.CircleRadius)
+                y -= offset
+                if group.color % 5 == 0:
+                    pygame.draw.circle(window, BallColors[group.color], [x,y], Spacing.CircleRadius)
+                elif group.color % 5 == 1:
+                    pygame.draw.rect(window, BallColors[group.color], pygame.Rect(x-Spacing.CircleRadius,y-Spacing.CircleRadius,2*Spacing.CircleRadius,2*Spacing.CircleRadius))
+                elif group.color % 5 == 2:
+                    pygame.draw.polygon(window, BallColors[group.color],
+                        [(x,y-Spacing.CircleRadius), 
+                        (x-Spacing.CircleRadius,y),
+                        (x,y+Spacing.CircleRadius),
+                        (x+Spacing.CircleRadius,y)])
+                elif group.color % 5 == 3:
+                    pygame.draw.polygon(window, BallColors[group.color],
+                        [(x,y-Spacing.CircleRadius), 
+                        (x-Spacing.CircleRadius,y+Spacing.CircleRadius),
+                        (x+Spacing.CircleRadius,y+Spacing.CircleRadius)])
+                elif group.color % 5 == 4:
+                    pygame.draw.polygon(window, BallColors[group.color],
+                        [(x-Spacing.CircleRadius,y-Spacing.CircleRadius),
+                        (x+Spacing.CircleRadius,y-Spacing.CircleRadius),
+                        (x,y+Spacing.CircleRadius)])
                 if pendingMove != None and pendingMove.peek().color == group.color:
-                    pygame.draw.circle(window, (0,0,0), [x,y-offset], Spacing.MatchCircleRadius)
-                y += 2*Spacing.CircleRadius + Spacing.CircleVerticalSpacing
+                    pygame.draw.circle(window, (0,0,0), [x,y], Spacing.MatchCircleRadius)
+                y += offset + 2*Spacing.CircleRadius + Spacing.CircleVerticalSpacing
 
         hintColor = GameColors.KeyboardHintCanMoveTo if tubeCanBeNextMove else GameColors.KeyboardHintNormal
         hintImage = arialFont.render(keyboardHintCharacters[row][column], True, hintColor)
