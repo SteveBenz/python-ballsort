@@ -1,4 +1,5 @@
 from array import array
+from math import ceil, floor
 import random
 from typing import Optional, Tuple
 import pygame
@@ -11,11 +12,10 @@ import pygame
 
 # TODO:
 # Animated movement
+# Better like-colors highlight
 # Save State
-# Restart - can just exit the game.
 # New Game
 # Detect Win and Loss
-# Keyboard hint should light for similar colors on top?
 
 pygame.init()
 
@@ -47,10 +47,8 @@ BallColors = (
 )
 
 keyboardHintCharacters = (
-    ('1', '2', '3', '4', '5'),
-    ('q', 'w', 'e', 'r', 't'),
-    ('a', 's', 'd', 'f', 'g'),
-    ('z', 'x', 'c', 'v', 'b'))
+    ('1', '2', '3', '4', '5', 'q', 'w', 'e', 'r', 't'),
+    ('a', 's', 'd', 'f', 'g', 'z', 'x', 'c', 'v', 'b'))
 
 pygame.font.init()
 arialFont = pygame.font.SysFont('arial', 16)
@@ -63,22 +61,49 @@ class GameColors:
     KeyboardHintCanMoveTo = (255, 255, 255)
 
 class Spacing:
-    CircleRadius = 10
-    MatchCircleRadius = 2
-    tubeMarginTop = 50
-    TubeMarginLeft = CircleRadius
-    CircleVerticalSpacing = CircleRadius//5
-    TubeHorizontalSpacing = CircleRadius + CircleRadius//2
-    TubeVerticalSpacing = CircleRadius*3
-    TubeMarginAroundBalls = 3
-    ScreenWidth = 650
-    ScreenHeight = 700
+    CircleRadius: float = 10
+    MatchCircleRadius: float = 2
+    TubeMarginTop: float = 50
+    TubeMarginLeft: float = CircleRadius
+    CircleVerticalSpacing: float = CircleRadius//5
+    TubeHorizontalSpacing: float = CircleRadius + CircleRadius//2
+    TubeVerticalSpacing: float = CircleRadius*3
+    TubeMarginAroundBalls: float = 3
+    ScreenWidth: float = 650
+    ScreenHeight: float = 700
+    BallsPerTube: int = 6
+    FullTubes: int = 16
+    EmptyTubes: int = 3
+    TubesPerRow: int = 10
 
-class GameData:
-    BallsPerTube = 6
-    FullTubes = 16
-    EmptyTubes = 3
-    TubesPerRow = 5
+    @staticmethod
+    def resize(w: float, h: float) -> None:
+        # TubeMarginLeft (1)
+        # |  Circles (2)
+        # |  |  TubeHorizontalSpacing (1.5)
+        # 2 (for the margins)
+        # (n-1) * 1.5  (for the spaces between)
+        # 2*n for the tubes themselves
+
+        circleRadiusBasedOnWidth = w / ( 2*Spacing.TubesPerRow + 2 +(Spacing.TubesPerRow-1)*1.5)
+
+        nRows:int = ceil((Spacing.FullTubes+Spacing.EmptyTubes)/(Spacing.TubesPerRow))
+        # 5*            margin top
+        # (nRows-1)*3   between rows
+        # nRows*ballsPerTube*2  circles
+        # nRows*(ballsPerTube-1)*.2  spacing between balls
+        # 1*            margin bottom
+
+        circleRadiusBasedOnHeight = h / (2+(nRows-1)*3 + nRows*Spacing.BallsPerTube*2 + nRows*(Spacing.BallsPerTube-1)*.2 + 1)
+
+        Spacing.CircleRadius = min(circleRadiusBasedOnWidth, circleRadiusBasedOnHeight)
+        Spacing.TubeMarginTop = Spacing.CircleRadius*2
+        Spacing.MatchCircleRadius = Spacing.CircleRadius / 5
+        Spacing.TubeMarginLeft = Spacing.CircleRadius
+        Spacing.CircleVerticalSpacing = Spacing.CircleRadius / 5
+        Spacing.TubeHorizontalSpacing = Spacing.CircleRadius * 1.5
+        Spacing.TubeVerticalSpacing = Spacing.CircleRadius * 3
+        Spacing.TubeMarginAroundBalls = Spacing.CircleRadius * .3
 
 class BallGroup:
     color: int
@@ -115,7 +140,7 @@ class Tube:
         return not any(self.ballGroups)
 
     def get_isComplete(self) -> bool:
-        return self.emptySlots == GameData.BallsPerTube or (len(self.ballGroups) == 1 and self.emptySlots == 0)
+        return self.emptySlots == Spacing.BallsPerTube or (len(self.ballGroups) == 1 and self.emptySlots == 0)
 
     def canAddBallGroup(self, group: BallGroup) -> bool:
         if self.emptySlots < group.count: return False
@@ -131,8 +156,8 @@ class Tube:
 
     def draw(self, row: int, column: int, pendingMove: Optional['Tube']) -> None:
         tubeCenter = Spacing.TubeMarginLeft + column*(Spacing.CircleRadius*2 + Spacing.TubeHorizontalSpacing) + Spacing.CircleRadius
-        tubeTotalHeight = GameData.BallsPerTube*Spacing.CircleRadius*2 + (GameData.BallsPerTube-1)*Spacing.CircleVerticalSpacing
-        tubeTop = Spacing.tubeMarginTop + row*(tubeTotalHeight + Spacing.TubeVerticalSpacing)
+        tubeTotalHeight = Spacing.BallsPerTube*Spacing.CircleRadius*2 + (Spacing.BallsPerTube-1)*Spacing.CircleVerticalSpacing
+        tubeTop = Spacing.TubeMarginTop + row*(tubeTotalHeight + Spacing.TubeVerticalSpacing)
         tubeCanBeNextMove = pendingMove != None and self.canAddBallGroup(pendingMove.peek())
         background = GameColors.ValidTargetTubeBackground if tubeCanBeNextMove else GameColors.TubeBackground
         pygame.draw.rect(window, background,
@@ -211,7 +236,7 @@ class TubeSet:
         return list(filter(lambda t: t != slot and slot.canAddBallGroup(slot.peek()), self.tubes))
 
     def draw(self, pendingMove: Optional[Tube], screen: pygame.surface.Surface):
-        rowWidth = GameData.TubesPerRow
+        rowWidth = Spacing.TubesPerRow
         row = 0
         column = 0
         for tube in self.tubes:
@@ -244,18 +269,18 @@ class TubeSet:
 
     def tryFindTubeByPosition(self, position: Tuple[int,int]) -> Optional[Tube]:
         (x,y) = position
-        tubesLeft: int = Spacing.TubeMarginLeft - Spacing.TubeHorizontalSpacing//2
-        tubesRight = Spacing.TubeMarginLeft + (GameData.TubesPerRow-1)*Spacing.CircleRadius*2 + GameData.TubesPerRow*Spacing.TubeHorizontalSpacing
-        tubeHeight = GameData.BallsPerTube*Spacing.CircleRadius*2 + (GameData.BallsPerTube-1)*Spacing.CircleVerticalSpacing
-        tubeTop = Spacing.tubeMarginTop - Spacing.TubeMarginAroundBalls
+        tubesLeft: float = Spacing.TubeMarginLeft - Spacing.TubeHorizontalSpacing//2
+        tubesRight = Spacing.TubeMarginLeft + (Spacing.TubesPerRow-1)*Spacing.CircleRadius*2 + Spacing.TubesPerRow*Spacing.TubeHorizontalSpacing
+        tubeHeight = Spacing.BallsPerTube*Spacing.CircleRadius*2 + (Spacing.BallsPerTube-1)*Spacing.CircleVerticalSpacing
+        tubeTop = Spacing.TubeMarginTop - Spacing.TubeMarginAroundBalls
         if x < tubesLeft or x > tubesRight:
             return None
-        column:int = (x - tubesLeft)//(Spacing.CircleRadius*2 + Spacing.TubeHorizontalSpacing)
+        column:int = floor((x - tubesLeft)//(Spacing.CircleRadius*2 + Spacing.TubeHorizontalSpacing))
         for row in range(4):
             rowTop = tubeTop+row*(tubeHeight+Spacing.TubeVerticalSpacing)
             rowBottom = rowTop + tubeHeight + 2*Spacing.TubeMarginAroundBalls
             if y >= rowTop and y <= rowBottom:
-                return self.tubes[row*GameData.TubesPerRow+column]
+                return self.tubes[row*Spacing.TubesPerRow+column]
         return None
     
     def numEmptyTubes(self) -> int:
@@ -273,10 +298,12 @@ class MoveRecord:
         self.target = target
 
 
-window = pygame.display.set_mode((Spacing.ScreenWidth, Spacing.ScreenHeight))
+window = pygame.display.set_mode((Spacing.ScreenWidth, Spacing.ScreenHeight), pygame.RESIZABLE)
 pygame.display.set_caption("Ball Sort")
 pygame.display.set_icon(pygame.image.load("icon.png"))
 pygame.display.update()
+
+Spacing.resize(Spacing.ScreenWidth, Spacing.ScreenHeight)
 
 tubeKeys = (
     pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4, pygame.K_5,
@@ -285,7 +312,7 @@ tubeKeys = (
     pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v, pygame.K_b
 )
 
-tubes = TubeSet(GameData.FullTubes, GameData.EmptyTubes, GameData.BallsPerTube)
+tubes = TubeSet(Spacing.FullTubes, Spacing.EmptyTubes, Spacing.BallsPerTube)
 source: Optional[Tube] = None
 closing = False
 undoStack: list[MoveRecord] = []
@@ -347,10 +374,10 @@ while not closing:
             selectedTube: Optional[Tube] = tubes.tryFindTubeByPosition((x,y))
             if selectedTube is not None:
                 doMove(selectedTube)
-            
-            #if selectedTube is not None:
-            #    doMove(selectedTube)
-    
+
+        elif event.type == pygame.VIDEORESIZE:
+            Spacing.resize(event.w, event.h)
+
     window.fill(black)
     tubes.draw(pendingMove, window)
     pygame.display.flip()
