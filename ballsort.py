@@ -94,10 +94,10 @@ class Spacing:
         # nRows*(ballsPerTube-1)*.2  spacing between balls
         # 1*            margin bottom
 
-        circleRadiusBasedOnHeight = h / (2+(nRows-1)*3 + nRows*Spacing.BallsPerTube*2 + nRows*(Spacing.BallsPerTube-1)*.2 + 1)
+        circleRadiusBasedOnHeight = h / (3+(nRows-1)*3 + nRows*Spacing.BallsPerTube*2 + nRows*(Spacing.BallsPerTube-1)*.2 + 3)
 
         Spacing.CircleRadius = min(circleRadiusBasedOnWidth, circleRadiusBasedOnHeight)
-        Spacing.TubeMarginTop = Spacing.CircleRadius*2
+        Spacing.TubeMarginTop = Spacing.CircleRadius*3
         Spacing.MatchCircleRadius = Spacing.CircleRadius / 5
         Spacing.TubeMarginLeft = Spacing.CircleRadius
         Spacing.CircleVerticalSpacing = Spacing.CircleRadius / 5
@@ -280,7 +280,8 @@ class TubeSet:
             rowTop = tubeTop+row*(tubeHeight+Spacing.TubeVerticalSpacing)
             rowBottom = rowTop + tubeHeight + 2*Spacing.TubeMarginAroundBalls
             if y >= rowTop and y <= rowBottom:
-                return self.tubes[row*Spacing.TubesPerRow+column]
+                index = row*Spacing.TubesPerRow+column
+                return self.tubes[index] if index < len(self.tubes) else None
         return None
     
     def numEmptyTubes(self) -> int:
