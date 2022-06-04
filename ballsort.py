@@ -1,6 +1,7 @@
 from array import array
 from math import ceil, floor
 import random
+import time
 from typing import Optional, Tuple
 import pygame
 
@@ -301,6 +302,29 @@ class TubeSet:
     
     def numEmptyTubes(self) -> int:
         return sum(1 for t in self.tubes if t.get_isEmpty())
+
+    def animateSelection(self, window: pygame.surface.Surface, newSelection: Optional[Tube], oldSelection: Optional[Tube]) -> None:
+        startTime = time.time()
+        animationDuration = 1.5 # seconds
+        if newSelection:
+            index = self.tubes.index(newSelection)
+            newOriginalY = Drawing.getCircleCenter(newSelection.emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow)
+            newTargetY = newOriginalY - Drawing.CircleRadius
+        if oldSelection:
+            index = self.tubes.index(newSelection)
+            oldOriginalY = Drawing.getCircleCenter(oldSelection.emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow)
+            oldTargetY = oldOriginalY - Drawing.CircleRadius
+        while True:
+            progress = (time.time() - startTime) / animationDuration
+            if progress >= 1:
+                progress = 1
+
+            if newSelection:
+                Drawing.
+
+            if progress == 1:
+                break
+        return None
 
 class MoveRecord:
     source: Tube
