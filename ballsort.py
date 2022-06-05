@@ -58,6 +58,7 @@ class Drawing:
     EmptyTubes: int = 3
     TubesPerRow: int = 10
     BallImages: list[pygame.Surface] = []
+    BallImagesHighlighted: list[pygame.Surface] = []
 
     BallColors = (
         (255,105,180), # Hot Pink
@@ -109,6 +110,7 @@ class Drawing:
         Drawing.TubeMarginAroundBalls = Drawing.CircleRadius * .3
 
         Drawing.BallImages.clear()
+        Drawing.BallImagesHighlighted.clear()
         for i in range(Drawing.FullTubes):
             x = Drawing.CircleRadius
             y = Drawing.CircleRadius
@@ -134,6 +136,10 @@ class Drawing:
                     (x+Drawing.CircleRadius,y-Drawing.CircleRadius),
                     (x,y+Drawing.CircleRadius)])
             Drawing.BallImages.append(ballImage)
+            ballImageHighlighted = pygame.Surface(ballImage.get_size(), pygame.SRCALPHA)
+            ballImageHighlighted.blit(ballImage, (0,0))
+            pygame.draw.circle(ballImageHighlighted, (0,0,0), (Drawing.CircleRadius, Drawing.CircleRadius), Drawing.CircleRadius*.2)
+            Drawing.BallImagesHighlighted.append(ballImageHighlighted)
     
     @staticmethod
     def getTubeRect(column: int, row: int) -> pygame.Rect:
@@ -211,7 +217,8 @@ class Tube:
         ballNumber = self.emptySlots
         for group in self.ballGroups:
             for _ in range(group.count):
-                image = Drawing.BallImages[group.color]
+                image = Drawing.BallImagesHighlighted[group.color] if pendingMove is not None and pendingMove.color == group.color \
+                    else Drawing.BallImages[group.color]
                 center = Drawing.getCircleCenter(ballNumber, column, row, group is pendingMove)
                 ballNumber += 1
                 window.blit(image, (center[0] - Drawing.CircleRadius, center[1] - Drawing.CircleRadius))
@@ -327,7 +334,7 @@ class TubeSet:
             balls = newSelection.peek()
             newSelectionImage = pygame.surface.Surface((Drawing.CircleRadius*2, Drawing.CircleRadius*2*balls.count + Drawing.CircleVerticalSpacing*(balls.count-1)), pygame.SRCALPHA)
             for i in range(balls.count):
-                newSelectionImage.blit(Drawing.BallImages[balls.color], (0, i*(Drawing.CircleRadius*2+Drawing.CircleVerticalSpacing)))
+                newSelectionImage.blit(Drawing.BallImagesHighlighted[balls.color], (0, i*(Drawing.CircleRadius*2+Drawing.CircleVerticalSpacing)))
             index = self.tubes.index(newSelection)
             ccBefore = Drawing.getCircleCenter(newSelection.emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=False)
             ccAfter = Drawing.getCircleCenter(newSelection.emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=True)
