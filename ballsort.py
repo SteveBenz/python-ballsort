@@ -432,21 +432,29 @@ def undo():
 
 # main loop
 while not closing:
+    doRedraw = False
     # event handling, gets all event from the event queue
     for event in pygame.event.get():
+        doRedraw = True
         if event.type == pygame.QUIT:
             closing = True
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
+            pendingMove = None
+            tubes = TubeSet(Drawing.FullTubes, Drawing.EmptyTubes, Drawing.BallsPerTube)
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             setPendingMove(None)
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
             setPendingMove(tubes.tryFindMove())
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL and event.mod & pygame.KMOD_SHIFT:
+            setPendingMove(None)
             oldEmptyCount = tubes.numEmptyTubes()
             while any(undoStack) and tubes.numEmptyTubes() <= oldEmptyCount:
                 undo()
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL:
+            setPendingMove(None)
             if any(undoStack): undo()
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_CTRL:
+            setPendingMove(None)
             if any(redoStack):
                 moveToRedo = redoStack.pop()
                 moveToRedo.target.push(BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count))
@@ -465,12 +473,13 @@ while not closing:
             selectedTube: Optional[Tube] = tubes.tryFindTubeByPosition((x,y))
             if selectedTube is not None:
                 doMove(selectedTube)
-
         elif event.type == pygame.VIDEORESIZE:
             Drawing.resize(event.w, event.h)
 
-    window.fill(black)
-
-    tubes.draw(window, None if pendingMove is None else pendingMove.peek())
+    if doRedraw:
+        window.fill(black)
+        tubes.draw(window, None if pendingMove is None else pendingMove.peek())
+    else:
+        time.sleep(.01)
     pygame.display.flip()
 
