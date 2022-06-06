@@ -502,11 +502,21 @@ def doMove(selectedTube: Tube):
 
 def undo():
     moveToUndo = undoStack.pop()
-    moveToUndo.source.push(BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count))
+    moving = BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count)
     moveToUndo.target.removeBalls(moveToUndo.count)
+    tubes.animateMove(window, moveToUndo.target, moveToUndo.source, moving, False)
+    moveToUndo.source.push(moving)
     redoStack.append(moveToUndo)
 
 # main loop
+def redo():
+    moveToRedo = redoStack.pop()
+    moving = BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count)
+    moveToRedo.source.removeBalls(moveToRedo.count)
+    tubes.animateMove(window, moveToRedo.source, moveToRedo.target, moving, False)
+    moveToRedo.target.push(moving)
+    undoStack.append(moveToRedo)
+
 while not closing:
     doRedraw = False
     # event handling, gets all event from the event queue
@@ -532,10 +542,7 @@ while not closing:
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_CTRL:
             setPendingMove(None)
             if any(redoStack):
-                moveToRedo = redoStack.pop()
-                moveToRedo.target.push(BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count))
-                moveToRedo.source.removeBalls(moveToRedo.count)
-                undoStack.append(moveToRedo)
+                redo()
         elif event.type == pygame.KEYDOWN and (event.key in tubeKeys or event.key == pygame.K_SPACE):
             if event.key == pygame.K_SPACE:
                 selectedTube = None if pendingMove is None else tubes.tryGetAutoMove(pendingMove)
