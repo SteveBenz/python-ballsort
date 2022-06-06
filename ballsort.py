@@ -1,8 +1,8 @@
 from array import array
-from math import ceil, floor
+from math import ceil, floor, sqrt
 import random
 import time
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 import pygame
 
 # Gotta do this first:
@@ -284,15 +284,22 @@ class TubeSet:
                 return t
         return emptyValidMove            
     
-    def tryFindMove(self) -> Optional[Tube]:
+    def tryFindMove(self, existingMove: Optional[Tube]) -> Optional[Tube]:
+        hitExistingMove = existingMove is None
+        firstValidMove = None
         for source in self.tubes:
             if source.get_isEmpty():
                 continue
             sourcePeek = source.peek()
             for target in self.tubes:
                 if target is not source and target.canAddBallGroup(sourcePeek):
-                    return source
-        return None
+                    if firstValidMove is None:
+                        firstValidMove = source
+                    if source is existingMove:
+                        hitExistingMove = True
+                    elif hitExistingMove:
+                        return source
+        return firstValidMove
 
     def tryFindTubeByPosition(self, position: Tuple[int,int]) -> Optional[Tube]:
         (x,y) = position
@@ -370,6 +377,73 @@ class TubeSet:
             pygame.display.flip()
         return None
 
+    @staticmethod
+    def interpolate(waypoints: list[Tuple[float, float]]) -> Callable[[float], Tuple[float,float]]:
+        totalLength = -1
+        lengths: list[float] = list()
+        lastWaypoint = [0,0]
+        for pair in waypoints:
+            if totalLength < 0:
+                lastWaypoint = pair
+                totalLength = 0
+            else:
+                dx = pair[0] - lastWaypoint[0]
+                dy = pair[1] - lastWaypoint[1]
+                length = sqrt(dx*dx+dy*dy)
+                totalLength += length
+                lastWaypoint = pair
+                lengths.append(length)
+        def interpolation(progress: float) -> Tuple[float,float]:
+            index = 0
+            totalLengthSoFar = 0
+            while totalLengthSoFar < progress * totalLength:
+                totalLengthSoFar += lengths[index]
+                index += 1
+            # index is the next waypoint - we're between waypoints[index-1] and waypoints[index]
+            priorWaypointDistance = 0
+            for i in range(index-1): priorWaypointDistance += lengths[i]
+            progressBetweenPoints = (totalLength*progress - priorWaypointDistance)/lengths[index-1]
+            x = waypoints[index-1][0] + (waypoints[index][0] - waypoints[index-1][0])*progressBetweenPoints
+            y = waypoints[index-1][1] + (waypoints[index][1] - waypoints[index-1][1])*progressBetweenPoints
+            return x,y
+        return interpolation
+
+    def animateMove(self, window: pygame.surface.Surface, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
+        background = pygame.surface.Surface(window.get_size())
+        self.draw(background, None)
+        sourceIndex = self.tubes.index(source)
+        sourceRow = sourceIndex // Drawing.TubesPerRow
+        sourceColumn = sourceIndex % Drawing.TubesPerRow
+        targetIndex = self.tubes.index(target)
+        targetRow = targetIndex // Drawing.TubesPerRow
+        targetColumn = targetIndex % Drawing.TubesPerRow
+        interpolatorFunctions: list[Callable[[float], Tuple[float,float]]] = []
+        topOfSourceTube = Drawing.getCircleCenter(0, sourceColumn, sourceRow, sourceIsSelected)
+        topOfSourceTube = topOfSourceTube[0], topOfSourceTube[1] - Drawing.CircleRadius*2 + Drawing.CircleVerticalSpacing
+        topOfTargetTube = Drawing.getCircleCenter(0, targetColumn, targetRow, False)
+        topOfTargetTube = topOfTargetTube[0], topOfTargetTube[1] - Drawing.CircleRadius*2 + Drawing.CircleVerticalSpacing
+        for i in range(moving.count):
+            start = Drawing.getCircleCenter(source.emptySlots - moving.count + i, sourceColumn, sourceRow, sourceIsSelected)
+            end = Drawing.getCircleCenter(target.emptySlots - 1 - i, targetColumn, targetRow, False)
+            interpolatorFunctions.append( \
+                TubeSet.interpolate( [start,topOfSourceTube,topOfTargetTube,end] ))
+
+        startTime = time.time()
+        animationDuration = .25 # seconds
+        progress = 0
+        while progress < 1:
+            progress = (time.time() - startTime) / animationDuration
+            if progress >= 1:
+                progress = 1
+
+            window.blit(background, (0,0))
+            for f in interpolatorFunctions:
+                center = f(progress)
+                topLeft = center[0] - Drawing.CircleRadius, center[1] - Drawing.CircleRadius
+                window.blit(Drawing.BallImages[moving.color], topLeft)
+            pygame.display.flip()
+        return None
+
 class MoveRecord:
     source: Tube
     target: Tube
@@ -419,7 +493,9 @@ def doMove(selectedTube: Tube):
     elif pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroup(pendingMove.peek()):
         undoStack.append(MoveRecord(pendingMove, selectedTube))
         redoStack.clear()
-        selectedTube.push(pendingMove.pop())
+        moving = pendingMove.pop()
+        tubes.animateMove(window, pendingMove, selectedTube, moving, True)
+        selectedTube.push(moving)
         pendingMove = None
     elif not selectedTube.get_isEmpty():
         setPendingMove(selectedTube)
@@ -444,7 +520,7 @@ while not closing:
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             setPendingMove(None)
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
-            setPendingMove(tubes.tryFindMove())
+            setPendingMove(tubes.tryFindMove(pendingMove))
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL and event.mod & pygame.KMOD_SHIFT:
             setPendingMove(None)
             oldEmptyCount = tubes.numEmptyTubes()
