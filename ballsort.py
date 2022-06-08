@@ -4,18 +4,24 @@ import random
 import time
 from typing import Callable, Optional, Tuple
 import pygame
+import pygame_button
 
-# Gotta do this first:
-#  py -m pip install pygame
-#
-# If errors, maybe do this first:
+# To install requirements:
 #  py -m pip uninstall pygame
+#  py -m pip install pygame_button
 
 # TODO:
-# Animated movement
+# Refactor to not use globals
+# Double-clicking a tube does a move
+# Buttons:
+#   Undo
+#   Undo-to-checkpoint
+#   ReDo
+#   New Game
+#   Game Size
 # Better like-colors highlight
 # Save State
-# New Game
+# Allow transfers of partial stacks
 # Detect Win and Loss
 
 pygame.init()
@@ -88,8 +94,9 @@ class Drawing:
         # 2 (for the margins)
         # (n-1) * 1.5  (for the spaces between)
         # 2*n for the tubes themselves
+        # n*3 for the button column
 
-        circleRadiusBasedOnWidth = w / ( 2*Drawing.TubesPerRow + 2 +(Drawing.TubesPerRow-1)*1.5)
+        circleRadiusBasedOnWidth = w / (2*Drawing.TubesPerRow + 2 + (Drawing.TubesPerRow-1)*1.5 + 3)
 
         nRows:int = ceil((Drawing.FullTubes+Drawing.EmptyTubes)/(Drawing.TubesPerRow))
         # 5*            margin top
