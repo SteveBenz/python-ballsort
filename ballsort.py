@@ -4,11 +4,11 @@ import random
 import time
 from typing import Callable, Optional, Tuple
 import pygame
-import pygame_button
+# import pygame_widgets.button
 
 # To install requirements:
 #  py -m pip uninstall pygame
-#  py -m pip install pygame_button
+#  py -m pip install pygame_widgets
 
 # TODO:
 # Refactor to not use globals
@@ -26,14 +26,6 @@ import pygame_button
 
 pygame.init()
 
-white = (255, 255, 255)
-red = (255, 0, 0)
-green = (0, 255, 0)
-blue = (0, 0, 255)
-brown = (255, 255, 0)
-purple = (255, 0, 255)
-black = (0, 0, 0)
-
 keyboardHintCharacters = (
     ('1', '2', '3', '4', '5', 'q', 'w', 'e', 'r', 't'),
     ('a', 's', 'd', 'f', 'g', 'z', 'x', 'c', 'v', 'b'))
@@ -47,6 +39,7 @@ class GameColors:
     WindowBackground = (0,0,0)
     KeyboardHintNormal = (128, 128, 128)
     KeyboardHintCanMoveTo = (255, 255, 255)
+    ButtonColor = (50, 255, 50)
 
 class Drawing:
     CircleRadius: float = 10
@@ -508,6 +501,8 @@ def doMove(selectedTube: Tube):
         setPendingMove(selectedTube)
 
 def undo():
+    if not undoStack:
+        return
     moveToUndo = undoStack.pop()
     moving = BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count)
     moveToUndo.target.removeBalls(moveToUndo.count)
@@ -515,8 +510,9 @@ def undo():
     moveToUndo.source.push(moving)
     redoStack.append(moveToUndo)
 
-# main loop
 def redo():
+    if not redoStack:
+        return
     moveToRedo = redoStack.pop()
     moving = BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count)
     moveToRedo.source.removeBalls(moveToRedo.count)
@@ -545,11 +541,10 @@ while not closing:
                 undo()
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL:
             setPendingMove(None)
-            if any(undoStack): undo()
+            undo()
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_CTRL:
             setPendingMove(None)
-            if any(redoStack):
-                redo()
+            redo()
         elif event.type == pygame.KEYDOWN and (event.key in tubeKeys or event.key == pygame.K_SPACE):
             if event.key == pygame.K_SPACE:
                 selectedTube = None if pendingMove is None else tubes.tryGetAutoMove(pendingMove)
@@ -567,7 +562,7 @@ while not closing:
             Drawing.resize(event.w, event.h)
 
     if doRedraw:
-        window.fill(black)
+        window.fill(GameColors.WindowBackground)
         tubes.draw(window, None if pendingMove is None else pendingMove.peek())
     else:
         time.sleep(.01)
