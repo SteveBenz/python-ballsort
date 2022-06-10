@@ -28,112 +28,111 @@ from TubeSet import TubeSet
 # Allow transfers of partial stacks
 # Detect Win and Loss
 
-pygame.init()
-pygame.font.init()
+class BallSortGame:
+    window = pygame.display.set_mode((Drawing.ScreenWidth, Drawing.ScreenHeight), pygame.RESIZABLE)
+    tubes = TubeSet(Drawing.FullTubes, Drawing.EmptyTubes, Drawing.BallsPerTube)
+    source: Optional[Tube] = None
+    undoStack: list[MoveRecord] = []
+    redoStack: list[MoveRecord] = []
+    pendingMove: Optional[Tube] = None
 
-window = pygame.display.set_mode((Drawing.ScreenWidth, Drawing.ScreenHeight), pygame.RESIZABLE)
-pygame.display.set_caption("Ball Sort")
-pygame.display.set_icon(pygame.image.load("icon.png"))
-pygame.display.update()
+    def setPendingMove(self, selectedTube: Optional[Tube]) -> None:
+        if selectedTube is not self.pendingMove:
+            self.tubes.animateSelection(self.window, selectedTube, self.pendingMove)
+            self.pendingMove = selectedTube
 
-Drawing.resize(Drawing.ScreenWidth, Drawing.ScreenHeight)
+    def doMove(self, selectedTube: Tube):
+        if self.pendingMove is selectedTube:
+            self.setPendingMove(None)
+        elif self.pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
+            self.setPendingMove(selectedTube)
+        elif self.pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroup(self.pendingMove.peek()):
+            self.undoStack.append(MoveRecord(self.pendingMove, selectedTube))
+            self.redoStack.clear()
+            moving = self.pendingMove.pop()
+            self.tubes.animateMove(self.window, self.pendingMove, selectedTube, moving, True)
+            selectedTube.push(moving)
+            self.pendingMove = None
+        elif not selectedTube.get_isEmpty():
+            self.setPendingMove(selectedTube)
 
+    def undo(self):
+        if not self.undoStack:
+            return
+        moveToUndo = self.undoStack.pop()
+        moving = BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count)
+        moveToUndo.target.removeBalls(moveToUndo.count)
+        self.tubes.animateMove(self.window, moveToUndo.target, moveToUndo.source, moving, False)
+        moveToUndo.source.push(moving)
+        self.redoStack.append(moveToUndo)
 
-tubes = TubeSet(Drawing.FullTubes, Drawing.EmptyTubes, Drawing.BallsPerTube)
-source: Optional[Tube] = None
-closing = False
-undoStack: list[MoveRecord] = []
-redoStack: list[MoveRecord] = []
-pendingMove: Optional[Tube] = None
+    def redo(self):
+        if not self.redoStack:
+            return
+        moveToRedo = self.redoStack.pop()
+        moving = BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count)
+        moveToRedo.source.removeBalls(moveToRedo.count)
+        self.tubes.animateMove(self.window, moveToRedo.source, moveToRedo.target, moving, False)
+        moveToRedo.target.push(moving)
+        self.undoStack.append(moveToRedo)
 
-def setPendingMove(selectedTube: Optional[Tube]) -> None:
-    global pendingMove
-    if selectedTube is not pendingMove:
-        tubes.animateSelection(window, selectedTube, pendingMove)
-        pendingMove = selectedTube
+    def main(self) -> None:
+        pygame.init()
+        pygame.font.init()
 
+        pygame.display.set_caption("Ball Sort")
+        pygame.display.set_icon(pygame.image.load("icon.png"))
+        pygame.display.update()
 
-def doMove(selectedTube: Tube):
-    global pendingMove
-    if pendingMove is selectedTube:
-        setPendingMove(None)
-    elif pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
-        setPendingMove(selectedTube)
-    elif pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroup(pendingMove.peek()):
-        undoStack.append(MoveRecord(pendingMove, selectedTube))
-        redoStack.clear()
-        moving = pendingMove.pop()
-        tubes.animateMove(window, pendingMove, selectedTube, moving, True)
-        selectedTube.push(moving)
-        pendingMove = None
-    elif not selectedTube.get_isEmpty():
-        setPendingMove(selectedTube)
+        Drawing.resize(Drawing.ScreenWidth, Drawing.ScreenHeight)
 
-def undo():
-    if not undoStack:
-        return
-    moveToUndo = undoStack.pop()
-    moving = BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count)
-    moveToUndo.target.removeBalls(moveToUndo.count)
-    tubes.animateMove(window, moveToUndo.target, moveToUndo.source, moving, False)
-    moveToUndo.source.push(moving)
-    redoStack.append(moveToUndo)
+        closing = False
+        while not closing:
+            doRedraw = False
+            # event handling, gets all event from the event queue
+            for event in pygame.event.get():
+                doRedraw = True
+                if event.type == pygame.QUIT:
+                    closing = True
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
+                    self.pendingMove = None
+                    self.tubes = TubeSet(Drawing.FullTubes, Drawing.EmptyTubes, Drawing.BallsPerTube)
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.setPendingMove(None)
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
+                    self.setPendingMove(self.tubes.tryFindMove(self.pendingMove))
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL and event.mod & pygame.KMOD_SHIFT:
+                    self.setPendingMove(None)
+                    oldEmptyCount = self.tubes.numEmptyTubes()
+                    while any(self.undoStack) and self.tubes.numEmptyTubes() <= oldEmptyCount:
+                        self.undo()
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL:
+                    self.setPendingMove(None)
+                    self.undo()
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_CTRL:
+                    self.setPendingMove(None)
+                    self.redo()
+                elif event.type == pygame.KEYDOWN and (self.tubes.isTubeKeyboardShortcut(event.key) or event.key == pygame.K_SPACE):
+                    if event.key == pygame.K_SPACE:
+                        selectedTube = None if self.pendingMove is None else self.tubes.tryGetAutoMove(self.pendingMove)
+                    else:
+                        selectedTube = self.tubes.getTubeForKeyStroke(event.key)
 
-def redo():
-    if not redoStack:
-        return
-    moveToRedo = redoStack.pop()
-    moving = BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count)
-    moveToRedo.source.removeBalls(moveToRedo.count)
-    tubes.animateMove(window, moveToRedo.source, moveToRedo.target, moving, False)
-    moveToRedo.target.push(moving)
-    undoStack.append(moveToRedo)
+                    if selectedTube is not None:
+                        self.doMove(selectedTube)
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    (x,y) = event.pos
+                    selectedTube: Optional[Tube] = self.tubes.tryFindTubeByPosition((x,y))
+                    if selectedTube is not None:
+                        self.doMove(selectedTube)
+                elif event.type == pygame.VIDEORESIZE:
+                    Drawing.resize(event.w, event.h)
 
-while not closing:
-    doRedraw = False
-    # event handling, gets all event from the event queue
-    for event in pygame.event.get():
-        doRedraw = True
-        if event.type == pygame.QUIT:
-            closing = True
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
-            pendingMove = None
-            tubes = TubeSet(Drawing.FullTubes, Drawing.EmptyTubes, Drawing.BallsPerTube)
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            setPendingMove(None)
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
-            setPendingMove(tubes.tryFindMove(pendingMove))
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL and event.mod & pygame.KMOD_SHIFT:
-            setPendingMove(None)
-            oldEmptyCount = tubes.numEmptyTubes()
-            while any(undoStack) and tubes.numEmptyTubes() <= oldEmptyCount:
-                undo()
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL:
-            setPendingMove(None)
-            undo()
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_CTRL:
-            setPendingMove(None)
-            redo()
-        elif event.type == pygame.KEYDOWN and (tubes.isTubeKeyboardShortcut(event.key) or event.key == pygame.K_SPACE):
-            if event.key == pygame.K_SPACE:
-                selectedTube = None if pendingMove is None else tubes.tryGetAutoMove(pendingMove)
+            if doRedraw:
+                self.window.fill(GameColors.WindowBackground)
+                self.tubes.draw(self.window, None if self.pendingMove is None else self.pendingMove.peek())
             else:
-                selectedTube = tubes.getTubeForKeyStroke(event.key)
+                time.sleep(.01)
+            pygame.display.flip()
 
-            if selectedTube is not None:
-                doMove(selectedTube)
-        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            (x,y) = event.pos
-            selectedTube: Optional[Tube] = tubes.tryFindTubeByPosition((x,y))
-            if selectedTube is not None:
-                doMove(selectedTube)
-        elif event.type == pygame.VIDEORESIZE:
-            Drawing.resize(event.w, event.h)
-
-    if doRedraw:
-        window.fill(GameColors.WindowBackground)
-        tubes.draw(window, None if pendingMove is None else pendingMove.peek())
-    else:
-        time.sleep(.01)
-    pygame.display.flip()
-
+BallSortGame().main()
