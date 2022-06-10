@@ -6,12 +6,12 @@ from GameColors import GameColors
 
 
 class Tube:
-    emptySlots: int
-    ballGroups: list[BallGroup]
+    # emptySlots: int
+    # ballGroups: list[BallGroup]
 
     def __init__(self, depth: int):
-        self.emptySlots = depth
-        self.ballGroups = list()
+        self.emptySlots: int = depth
+        self.ballGroups: list[BallGroup] = list()
 
     def peek(self) -> BallGroup:
         return self.ballGroups[0]

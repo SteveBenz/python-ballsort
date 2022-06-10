@@ -8,11 +8,11 @@ from typing import Callable, Optional, Tuple
 import pygame
 from BallGroup import BallGroup
 from Drawing import Drawing
+from MoveRecord import MoveRecord
 from Tube import Tube
 
 
 class TubeSet:
-    tubes: list[Tube]
 
     __keyboardHintCharacters = (
         '1', '2', '3', '4', '5',
@@ -28,7 +28,8 @@ class TubeSet:
         pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v, pygame.K_b
     )
 
-    def __init__(self, numTubes: int, numFreeTubes: int, depth: int):
+    def __init__(self, window: pygame.surface.Surface, numTubes: int, numFreeTubes: int, depth: int):
+        self.__window = window
         a = array('i', [0]*numTubes*depth)
         td = numTubes*depth
         for i in range(td):
@@ -40,7 +41,7 @@ class TubeSet:
                 a[i] = a[swapWith]
                 a[swapWith] = h
 
-        self.tubes = []
+        self.tubes: list[Tube] = []
         for i in range(numTubes):
             newTube = Tube(depth)
             for j in range(depth):
@@ -49,6 +50,11 @@ class TubeSet:
 
         for i in range(numFreeTubes):
             self.tubes.append(Tube(depth))
+
+        self.undoStack: list[MoveRecord] = []
+        self.redoStack: list[MoveRecord] = []
+        self.pendingMove: Optional[Tube] = None
+
 
     # Tests to see if the top color block can be moved and, if so, to which
     # tubes could it be added.
@@ -125,8 +131,8 @@ class TubeSet:
     def interpolatePosition(start: Tuple[float,float], end: Tuple[float,float], progress: float) -> Tuple[float,float]:
         return start[0] + (end[0]-start[0])*progress, start[1] + (end[1]-start[1])*progress
 
-    def animateSelection(self, window: pygame.surface.Surface, newSelection: Optional[Tube], oldSelection: Optional[Tube]) -> None:
-        background = pygame.surface.Surface(window.get_size())
+    def animateSelection(self, newSelection: Optional[Tube], oldSelection: Optional[Tube]) -> None:
+        background = pygame.surface.Surface(self.__window.get_size())
         newSelectionGroup = None if newSelection is None else newSelection.pop()
         oldSelectionGroup = None if oldSelection is None else oldSelection.pop()
         self.draw(background, None)
@@ -169,11 +175,11 @@ class TubeSet:
             if progress >= 1:
                 progress = 1
 
-            window.blit(background, (0,0))
+            self.__window.blit(background, (0,0))
             if newSelectionImage:
-                window.blit(newSelectionImage, TubeSet.interpolatePosition(newSelectionTopLeftStart, newSelectionTopLeftEnd, progress))
+                self.__window.blit(newSelectionImage, TubeSet.interpolatePosition(newSelectionTopLeftStart, newSelectionTopLeftEnd, progress))
             if oldSelectionImage:
-                window.blit(oldSelectionImage, TubeSet.interpolatePosition(oldSelectionTopLeftStart, oldSelectionTopLeftEnd, progress))
+                self.__window.blit(oldSelectionImage, TubeSet.interpolatePosition(oldSelectionTopLeftStart, oldSelectionTopLeftEnd, progress))
             pygame.display.flip()
         return None
 
@@ -208,8 +214,8 @@ class TubeSet:
             return x,y
         return interpolation
 
-    def animateMove(self, window: pygame.surface.Surface, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
-        background = pygame.surface.Surface(window.get_size())
+    def animateMove(self, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
+        background = pygame.surface.Surface(self.__window.get_size())
         self.draw(background, None)
         sourceIndex = self.tubes.index(source)
         sourceRow = sourceIndex // Drawing.TubesPerRow
@@ -236,10 +242,82 @@ class TubeSet:
             if progress >= 1:
                 progress = 1
 
-            window.blit(background, (0,0))
+            self.__window.blit(background, (0,0))
             for f in interpolatorFunctions:
                 center = f(progress)
                 topLeft = center[0] - Drawing.CircleRadius, center[1] - Drawing.CircleRadius
-                window.blit(Drawing.BallImages[moving.color], topLeft)
+                self.__window.blit(Drawing.BallImages[moving.color], topLeft)
             pygame.display.flip()
         return None
+
+    def setPendingMove(self, selectedTube: Optional[Tube]) -> None:
+        if selectedTube is not self.pendingMove:
+            self.animateSelection(selectedTube, self.pendingMove)
+            self.pendingMove = selectedTube
+
+    def doMove(self, selectedTube: Tube):
+        if self.pendingMove is selectedTube:
+            self.setPendingMove(None)
+        elif self.pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
+            self.setPendingMove(selectedTube)
+        elif self.pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroup(self.pendingMove.peek()):
+            self.undoStack.append(MoveRecord(self.pendingMove, selectedTube))
+            self.redoStack.clear()
+            moving = self.pendingMove.pop()
+            self.animateMove(self.pendingMove, selectedTube, moving, True)
+            selectedTube.push(moving)
+            self.pendingMove = None
+        elif not selectedTube.get_isEmpty():
+            self.setPendingMove(selectedTube)
+
+    def undo(self):
+        if not self.undoStack:
+            return
+        moveToUndo = self.undoStack.pop()
+        moving = BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count)
+        moveToUndo.target.removeBalls(moveToUndo.count)
+        self.animateMove(moveToUndo.target, moveToUndo.source, moving, False)
+        moveToUndo.source.push(moving)
+        self.redoStack.append(moveToUndo)
+
+    def redo(self):
+        if not self.redoStack:
+            return
+        moveToRedo = self.redoStack.pop()
+        moving = BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count)
+        moveToRedo.source.removeBalls(moveToRedo.count)
+        self.animateMove(moveToRedo.source, moveToRedo.target, moving, False)
+        moveToRedo.target.push(moving)
+        self.undoStack.append(moveToRedo)
+
+    def update(self, events: list[pygame.event.Event]) -> None:
+        for event in events:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.setPendingMove(None)
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
+                self.setPendingMove(self.tryFindMove(self.pendingMove))
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL and event.mod & pygame.KMOD_SHIFT:
+                self.setPendingMove(None)
+                oldEmptyCount = self.numEmptyTubes()
+                while any(self.undoStack) and self.numEmptyTubes() <= oldEmptyCount:
+                    self.undo()
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL:
+                self.setPendingMove(None)
+                self.undo()
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_CTRL:
+                self.setPendingMove(None)
+                self.redo()
+            elif event.type == pygame.KEYDOWN and (self.isTubeKeyboardShortcut(event.key) or event.key == pygame.K_SPACE):
+                if event.key == pygame.K_SPACE:
+                    selectedTube = None if self.pendingMove is None else self.tryGetAutoMove(self.pendingMove)
+                else:
+                    selectedTube = self.getTubeForKeyStroke(event.key)
+
+                if selectedTube is not None:
+                    self.doMove(selectedTube)
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                (x,y) = event.pos
+                selectedTube: Optional[Tube] = self.tryFindTubeByPosition((x,y))
+                if selectedTube is not None:
+                    self.doMove(selectedTube)
+        self.draw(self.__window, None if self.pendingMove is None else self.pendingMove.peek())
