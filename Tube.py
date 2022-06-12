@@ -1,4 +1,3 @@
-from optparse import Option
 from typing import Final, Optional, Tuple
 import pygame
 from BallGroup import BallGroup
@@ -9,7 +8,7 @@ class Tube:
     # Both of these are as-a-fraction-of-total-width
     __HORIZONTAL_SPACE_BETWEEN_TUBES: Final[float] = .15
     # This is horizontal and vertical, but it is a fraction of the total width of the rectangle.
-    __SPACE_BETWEEN_BALLS: Final[float] = .05
+    __SPACE_BETWEEN_BALLS: Final[float] = .1
 
     __cachedBallImages: list[pygame.Surface] = []
     __cachedBallImagesHighlighted: list[pygame.Surface] = []
@@ -49,6 +48,10 @@ class Tube:
 
     def peek(self) -> BallGroup:
         return self.__ballGroups[0]
+
+    @property
+    def emptySlots(self) -> int:
+        return self.__emptySlots
 
     def pop(self) -> BallGroup:
         r = self.__ballGroups.pop(0)
@@ -118,7 +121,7 @@ class Tube:
     def getTubeRectangle(self) -> pygame.Rect:
         b0 = self.getBallPosition(0)
         spacing = self.rect.width*Tube.__SPACE_BETWEEN_BALLS
-        return pygame.Rect(b0.left-spacing/2,b0.top-spacing/2,b0.width+spacing,self.rect.bottom - b0.top-spacing/2)
+        return pygame.Rect(b0.left-spacing/2,b0.top-spacing/2,b0.width+spacing,(self.rect.bottom - b0.top)+spacing/2)
 
     def setPosition(self, newPosition: pygame.Rect) -> None:
         self.rect = newPosition
@@ -178,6 +181,7 @@ class Tube:
                 ballNumber += 1
 
         hintColor = GameColors.KeyboardHintCanMoveTo if tubeCanBeNextMove else GameColors.KeyboardHintNormal
+        assert(Tube.__hintFont is not None)
         hintImage = Tube.__hintFont.render(self.__hintKey, True, hintColor)
         hintImageRect = hintImage.get_rect()
         hintPositionAsBall = self.getBallPosition(-1 - (0 if self.get_isEmpty() or pendingMove != self.peek() else .5))

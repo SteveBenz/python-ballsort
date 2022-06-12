@@ -2,6 +2,7 @@
 from array import array
 import math
 import random
+import time
 from typing import Callable, Iterable, Optional, Tuple
 
 import pygame
@@ -128,9 +129,9 @@ class TubeSet:
 
     @staticmethod
     def interpolate(waypoints: list[Tuple[float, float]]) -> Callable[[float], Tuple[float,float]]:
-        totalLength = -1
+        totalLength = -1.0
         lengths: list[float] = list()
-        lastWaypoint = [0,0]
+        lastWaypoint = (0.0,0.0)
         for pair in waypoints:
             if totalLength < 0:
                 lastWaypoint = pair
@@ -144,70 +145,61 @@ class TubeSet:
                 lengths.append(length)
         def interpolation(progress: float) -> Tuple[float,float]:
             index = 0
-            totalLengthSoFar = 0
+            totalLengthSoFar = 0.0
             while totalLengthSoFar < progress * totalLength:
                 totalLengthSoFar += lengths[index]
                 index += 1
             # index is the next waypoint - we're between waypoints[index-1] and waypoints[index]
-            priorWaypointDistance = 0
+            priorWaypointDistance = 0.0
             for i in range(index-1): priorWaypointDistance += lengths[i]
             progressBetweenPoints = (totalLength*progress - priorWaypointDistance)/lengths[index-1]
             x = waypoints[index-1][0] + (waypoints[index][0] - waypoints[index-1][0])*progressBetweenPoints
             y = waypoints[index-1][1] + (waypoints[index][1] - waypoints[index-1][1])*progressBetweenPoints
             return x,y
         return interpolation
+    
+    def makeSelectionAnimator(self, selection: Tube, isIncoming: bool) -> Callable[[float], pygame.Rect]:
+        selectionGroup = selection.peek()
+        topBallRectHigh = selection.getBallPosition(selection.emptySlots-.5)
+        topBallRect = selection.getBallPosition(selection.emptySlots)
+        bottomBallRect = selection.getBallPosition(selection.emptySlots+selectionGroup.count-1)
+        animationArea = topBallRectHigh.union(bottomBallRect)
+        background = pygame.Surface(animationArea.size)
 
+        _ = selection.pop()
+        selection.draw(self.__window, None)
+        background.blit(self.__window, (0,0), animationArea)
+        selection.push(selectionGroup)
+        selection.draw(self.__window, None)
+        justBallsRect = topBallRect.union(bottomBallRect)
+        justBallsImage = pygame.Surface(justBallsRect.size)
+        justBallsImage.blit(self.__window, (0,0), justBallsRect)
+        def animation(position: float) -> pygame.Rect:
+            offset = (1-position if isIncoming else position) * (topBallRect.top - topBallRectHigh.top)
+            self.__window.blit(background, animationArea)
+            self.__window.blit(justBallsImage, (animationArea.left, animationArea.top+offset))
+            return animationArea  # type: ignore
+        return animation
+    
     def animateSelection(self, newSelection: Optional[Tube], oldSelection: Optional[Tube]) -> None:
-        # background = pygame.Surface(self.__window.get_size())
-        # newSelectionGroup = None if newSelection is None else newSelection.pop()
-        # oldSelectionGroup = None if oldSelection is None else oldSelection.pop()
-        # self.draw(background, None)
-        # if newSelection is not None:
-        #     newSelection.push(newSelectionGroup)  # type: ignore
-        # if oldSelectionGroup is not None:
-        #     oldSelection.push(oldSelectionGroup)  # type: ignore
-        # newSelectionImage = None
-        # newSelectionTopLeftStart = 0,0
-        # newSelectionTopLeftEnd = 0,0
-        # if newSelection:
-        #     balls = newSelection.peek()
-        #     newSelectionImage = pygame.surface.Surface((Drawing.CircleRadius*2, Drawing.CircleRadius*2*balls.count + Drawing.CircleVerticalSpacing*(balls.count-1)), pygame.SRCALPHA)
-        #     for i in range(balls.count):
-        #         newSelectionImage.blit(Drawing.BallImagesHighlighted[balls.color], (0, i*(Drawing.CircleRadius*2+Drawing.CircleVerticalSpacing)))
-        #     index = self.tubes.index(newSelection)
-        #     ccBefore = Drawing.getCircleCenter(newSelection.__emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=False)
-        #     ccAfter = Drawing.getCircleCenter(newSelection.__emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=True)
-        #     newSelectionTopLeftStart = ccBefore[0] - Drawing.CircleRadius, ccBefore[1] - Drawing.CircleRadius
-        #     newSelectionTopLeftEnd = ccAfter[0] - Drawing.CircleRadius, ccAfter[1] - Drawing.CircleRadius
-        # oldSelectionImage = None
-        # oldSelectionTopLeftStart = 0,0
-        # oldSelectionTopLeftEnd = 0,0
-        # if oldSelection:
-        #     balls = oldSelection.peek()
-        #     oldSelectionImage = pygame.surface.Surface((Drawing.CircleRadius*2, Drawing.CircleRadius*2*balls.count + Drawing.CircleVerticalSpacing*(balls.count-1)), pygame.SRCALPHA)
-        #     for i in range(balls.count):
-        #         oldSelectionImage.blit(Drawing.BallImages[balls.color], (0, i*(Drawing.CircleRadius*2+Drawing.CircleVerticalSpacing)))
-        #     index = self.tubes.index(oldSelection)
-        #     ccBefore = Drawing.getCircleCenter(oldSelection.__emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=True)
-        #     ccAfter = Drawing.getCircleCenter(oldSelection.__emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=False)
-        #     oldSelectionTopLeftStart = ccBefore[0] - Drawing.CircleRadius, ccBefore[1] - Drawing.CircleRadius
-        #     oldSelectionTopLeftEnd = ccAfter[0] - Drawing.CircleRadius, ccAfter[1] - Drawing.CircleRadius
+        newAnimation = self.makeSelectionAnimator(newSelection, True) if newSelection else None
+        oldAnimation = self.makeSelectionAnimator(oldSelection, False) if oldSelection else None
+        startTime = time.time()
+        animationDuration = .1 # seconds
+        progress = 0.0
+        while progress < 1:
+            progress = (time.time() - startTime) / animationDuration
+            if progress >= 1:
+                progress = 1
+            updateAreas: list[pygame.Rect] = []
+            if newAnimation:
+                updateAreas.append(newAnimation(progress))
+            if oldAnimation:
+                updateAreas.append(oldAnimation(progress))
 
-        # startTime = time.time()
-        # animationDuration = .1 # seconds
-        # progress = 0
-        # while progress < 1:
-        #     progress = (time.time() - startTime) / animationDuration
-        #     if progress >= 1:
-        #         progress = 1
+            pygame.display.update(updateAreas)  # type: ignore   Looks like a pylance bug
 
-        #     self.__window.blit(background, (0,0))
-        #     if newSelectionImage:
-        #         self.__window.blit(newSelectionImage, TubeSet.interpolatePosition(newSelectionTopLeftStart, newSelectionTopLeftEnd, progress))
-        #     if oldSelectionImage:
-        #         self.__window.blit(oldSelectionImage, TubeSet.interpolatePosition(oldSelectionTopLeftStart, oldSelectionTopLeftEnd, progress))
-        #     pygame.display.flip()
-        return None
+        
 
     def animateMove(self, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
         # background = pygame.surface.Surface(self.__window.get_size())
