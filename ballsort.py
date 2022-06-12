@@ -1,12 +1,7 @@
 import time
-from typing import Optional
 import pygame
-from BallGroup import BallGroup
 
-from Drawing import Drawing
 from GameColors import GameColors
-from MoveRecord import MoveRecord
-from Tube import Tube
 from TubeSet import TubeSet
 # import pygame_widgets.button
 
@@ -32,18 +27,13 @@ from TubeSet import TubeSet
 
 class BallSortGame:
     def __init__(self):
-        self.__window = pygame.display.set_mode((Drawing.ScreenWidth, Drawing.ScreenHeight), pygame.RESIZABLE)
-        self.__tubes = TubeSet(self.__window, Drawing.FullTubes, Drawing.EmptyTubes, Drawing.BallsPerTube)
+        self.__window = pygame.display.set_mode((800, 600), pygame.RESIZABLE)
+        self.__tubes = TubeSet(self.__window, pygame.Rect(0,0,800,600), 16, 3, 6)  # type: ignore
 
     def main(self) -> None:
-        pygame.init()
-        pygame.font.init()
-
         pygame.display.set_caption("Ball Sort")
         pygame.display.set_icon(pygame.image.load("icon.png"))
         pygame.display.update()
-
-        Drawing.resize(Drawing.ScreenWidth, Drawing.ScreenHeight)
 
         closing = False
         while not closing:
@@ -53,9 +43,9 @@ class BallSortGame:
                 if event.type == pygame.QUIT:
                     closing = True
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
-                    self.__tubes = TubeSet(self.__window, Drawing.FullTubes, Drawing.EmptyTubes, Drawing.BallsPerTube)
+                    self.__tubes = TubeSet(self.__window, self.__window.get_rect(), 16, 3, 6) # type: ignore
                 elif event.type == pygame.VIDEORESIZE:
-                    Drawing.resize(event.w, event.h)
+                    print("fix resize")
                 else:
                     unhandledEvents.append(event)
 
@@ -64,4 +54,6 @@ class BallSortGame:
             time.sleep(.01)
             pygame.display.flip()
 
+pygame.init()
+pygame.font.init()
 BallSortGame().main()

@@ -2,12 +2,10 @@
 from array import array
 import math
 import random
-import time
-from typing import Callable, Optional, Tuple
+from typing import Callable, Iterable, Optional, Tuple
 
 import pygame
 from BallGroup import BallGroup
-from Drawing import Drawing
 from MoveRecord import MoveRecord
 from Tube import Tube
 
@@ -28,7 +26,7 @@ class TubeSet:
         pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v, pygame.K_b
     )
 
-    def __init__(self, window: pygame.surface.Surface, numTubes: int, numFreeTubes: int, depth: int):
+    def __init__(self, window: pygame.Surface, rect: pygame.Rect, numTubes: int, numFreeTubes: int, depth: int):
         self.__window = window
         a = array('i', [0]*numTubes*depth)
         td = numTubes*depth
@@ -41,20 +39,33 @@ class TubeSet:
                 a[i] = a[swapWith]
                 a[swapWith] = h
 
+        # Hard code to a two-row setup with 10% space above each.
         self.tubes: list[Tube] = []
-        for i in range(numTubes):
-            newTube = Tube(depth)
-            for j in range(depth):
-                newTube.push(BallGroup(color=a[i*depth+j], count=1))
-            self.tubes.append(newTube)
+        i = 0
+        for tubeRect in TubeSet.__getTubeLayout(rect, numTubes + numFreeTubes, depth):
+            self.tubes.append(Tube(window, tubeRect, TubeSet.__keyboardHintCharacters[i], depth))
+            i += 1
 
-        for i in range(numFreeTubes):
-            self.tubes.append(Tube(depth))
+        for i in range(numTubes):
+            for j in range(depth):
+                self.tubes[i].push(BallGroup(color=a[i*depth+j], count=1))
 
         self.undoStack: list[MoveRecord] = []
         self.redoStack: list[MoveRecord] = []
         self.pendingMove: Optional[Tube] = None
 
+    @staticmethod
+    def __getTubeLayout(rect: pygame.Rect, numTubes: int, numBalls: int) -> Iterable[pygame.Rect]:
+        # Hard-coding to a two-row.  Better if we adjusted it based on the layout
+        rows = 2
+        columns = (numTubes+1)//2
+        (width,height) = Tube.getMaxUsableSize((rect.width / columns, rect.height / rows), numBalls)
+
+        # It'd be better if the extra space was distributed between rows and columns
+        for i in range(numTubes):
+            row = i // columns
+            column = i % columns
+            yield pygame.Rect(width*column, height*row, width, height)
 
     # Tests to see if the top color block can be moved and, if so, to which
     # tubes could it be added.
@@ -68,16 +79,9 @@ class TubeSet:
     def getTubeForKeyStroke(self, keyboardId: int) -> Tube:
         return self.tubes[TubeSet.__tubeKeys.index(keyboardId)]
 
-    def draw(self, window: pygame.surface.Surface, pendingMove: Optional[BallGroup]):
-        rowWidth = Drawing.TubesPerRow
-        row = 0
-        column = 0
+    def draw(self, window: pygame.Surface, pendingMove: Optional[BallGroup]):
         for tube in self.tubes:
-            tube.draw(window, row, column, pendingMove, self.__keyboardHintCharacters[row*rowWidth+column])
-            column += 1
-            if column == rowWidth:
-                column = 0
-                row += 1
+            tube.draw(window, pendingMove)
     
     def tryGetAutoMove(self, source: Tube) -> Optional[Tube]:
         emptyValidMove = None
@@ -108,20 +112,9 @@ class TubeSet:
         return firstValidMove
 
     def tryFindTubeByPosition(self, position: Tuple[int,int]) -> Optional[Tube]:
-        (x,y) = position
-        tubesLeft: float = Drawing.TubeMarginLeft - Drawing.TubeHorizontalSpacing//2
-        tubesRight = Drawing.TubeMarginLeft + (Drawing.TubesPerRow-1)*Drawing.CircleRadius*2 + Drawing.TubesPerRow*Drawing.TubeHorizontalSpacing
-        tubeHeight = Drawing.BallsPerTube*Drawing.CircleRadius*2 + (Drawing.BallsPerTube-1)*Drawing.CircleVerticalSpacing
-        tubeTop = Drawing.TubeMarginTop - Drawing.TubeMarginAroundBalls
-        if x < tubesLeft or x > tubesRight:
-            return None
-        column:int = math.floor((x - tubesLeft)/(Drawing.CircleRadius*2 + Drawing.TubeHorizontalSpacing))
-        for row in range(4):
-            rowTop = tubeTop+row*(tubeHeight+Drawing.TubeVerticalSpacing)
-            rowBottom = rowTop + tubeHeight + 2*Drawing.TubeMarginAroundBalls
-            if y >= rowTop and y <= rowBottom:
-                index = row*Drawing.TubesPerRow+column
-                return self.tubes[index] if index < len(self.tubes) else None
+        for t in self.tubes:
+            if t.rect.collidepoint(position):
+                return t
         return None
     
     def numEmptyTubes(self) -> int:
@@ -130,58 +123,6 @@ class TubeSet:
     @staticmethod
     def interpolatePosition(start: Tuple[float,float], end: Tuple[float,float], progress: float) -> Tuple[float,float]:
         return start[0] + (end[0]-start[0])*progress, start[1] + (end[1]-start[1])*progress
-
-    def animateSelection(self, newSelection: Optional[Tube], oldSelection: Optional[Tube]) -> None:
-        background = pygame.surface.Surface(self.__window.get_size())
-        newSelectionGroup = None if newSelection is None else newSelection.pop()
-        oldSelectionGroup = None if oldSelection is None else oldSelection.pop()
-        self.draw(background, None)
-        if newSelection is not None:
-            newSelection.push(newSelectionGroup)  # type: ignore
-        if oldSelectionGroup is not None:
-            oldSelection.push(oldSelectionGroup)  # type: ignore
-        newSelectionImage = None
-        newSelectionTopLeftStart = 0,0
-        newSelectionTopLeftEnd = 0,0
-        if newSelection:
-            balls = newSelection.peek()
-            newSelectionImage = pygame.surface.Surface((Drawing.CircleRadius*2, Drawing.CircleRadius*2*balls.count + Drawing.CircleVerticalSpacing*(balls.count-1)), pygame.SRCALPHA)
-            for i in range(balls.count):
-                newSelectionImage.blit(Drawing.BallImagesHighlighted[balls.color], (0, i*(Drawing.CircleRadius*2+Drawing.CircleVerticalSpacing)))
-            index = self.tubes.index(newSelection)
-            ccBefore = Drawing.getCircleCenter(newSelection.emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=False)
-            ccAfter = Drawing.getCircleCenter(newSelection.emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=True)
-            newSelectionTopLeftStart = ccBefore[0] - Drawing.CircleRadius, ccBefore[1] - Drawing.CircleRadius
-            newSelectionTopLeftEnd = ccAfter[0] - Drawing.CircleRadius, ccAfter[1] - Drawing.CircleRadius
-        oldSelectionImage = None
-        oldSelectionTopLeftStart = 0,0
-        oldSelectionTopLeftEnd = 0,0
-        if oldSelection:
-            balls = oldSelection.peek()
-            oldSelectionImage = pygame.surface.Surface((Drawing.CircleRadius*2, Drawing.CircleRadius*2*balls.count + Drawing.CircleVerticalSpacing*(balls.count-1)), pygame.SRCALPHA)
-            for i in range(balls.count):
-                oldSelectionImage.blit(Drawing.BallImages[balls.color], (0, i*(Drawing.CircleRadius*2+Drawing.CircleVerticalSpacing)))
-            index = self.tubes.index(oldSelection)
-            ccBefore = Drawing.getCircleCenter(oldSelection.emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=True)
-            ccAfter = Drawing.getCircleCenter(oldSelection.emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=False)
-            oldSelectionTopLeftStart = ccBefore[0] - Drawing.CircleRadius, ccBefore[1] - Drawing.CircleRadius
-            oldSelectionTopLeftEnd = ccAfter[0] - Drawing.CircleRadius, ccAfter[1] - Drawing.CircleRadius
-
-        startTime = time.time()
-        animationDuration = .1 # seconds
-        progress = 0
-        while progress < 1:
-            progress = (time.time() - startTime) / animationDuration
-            if progress >= 1:
-                progress = 1
-
-            self.__window.blit(background, (0,0))
-            if newSelectionImage:
-                self.__window.blit(newSelectionImage, TubeSet.interpolatePosition(newSelectionTopLeftStart, newSelectionTopLeftEnd, progress))
-            if oldSelectionImage:
-                self.__window.blit(oldSelectionImage, TubeSet.interpolatePosition(oldSelectionTopLeftStart, oldSelectionTopLeftEnd, progress))
-            pygame.display.flip()
-        return None
 
     @staticmethod
     def interpolate(waypoints: list[Tuple[float, float]]) -> Callable[[float], Tuple[float,float]]:
@@ -214,40 +155,92 @@ class TubeSet:
             return x,y
         return interpolation
 
+    def animateSelection(self, newSelection: Optional[Tube], oldSelection: Optional[Tube]) -> None:
+        # background = pygame.Surface(self.__window.get_size())
+        # newSelectionGroup = None if newSelection is None else newSelection.pop()
+        # oldSelectionGroup = None if oldSelection is None else oldSelection.pop()
+        # self.draw(background, None)
+        # if newSelection is not None:
+        #     newSelection.push(newSelectionGroup)  # type: ignore
+        # if oldSelectionGroup is not None:
+        #     oldSelection.push(oldSelectionGroup)  # type: ignore
+        # newSelectionImage = None
+        # newSelectionTopLeftStart = 0,0
+        # newSelectionTopLeftEnd = 0,0
+        # if newSelection:
+        #     balls = newSelection.peek()
+        #     newSelectionImage = pygame.surface.Surface((Drawing.CircleRadius*2, Drawing.CircleRadius*2*balls.count + Drawing.CircleVerticalSpacing*(balls.count-1)), pygame.SRCALPHA)
+        #     for i in range(balls.count):
+        #         newSelectionImage.blit(Drawing.BallImagesHighlighted[balls.color], (0, i*(Drawing.CircleRadius*2+Drawing.CircleVerticalSpacing)))
+        #     index = self.tubes.index(newSelection)
+        #     ccBefore = Drawing.getCircleCenter(newSelection.__emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=False)
+        #     ccAfter = Drawing.getCircleCenter(newSelection.__emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=True)
+        #     newSelectionTopLeftStart = ccBefore[0] - Drawing.CircleRadius, ccBefore[1] - Drawing.CircleRadius
+        #     newSelectionTopLeftEnd = ccAfter[0] - Drawing.CircleRadius, ccAfter[1] - Drawing.CircleRadius
+        # oldSelectionImage = None
+        # oldSelectionTopLeftStart = 0,0
+        # oldSelectionTopLeftEnd = 0,0
+        # if oldSelection:
+        #     balls = oldSelection.peek()
+        #     oldSelectionImage = pygame.surface.Surface((Drawing.CircleRadius*2, Drawing.CircleRadius*2*balls.count + Drawing.CircleVerticalSpacing*(balls.count-1)), pygame.SRCALPHA)
+        #     for i in range(balls.count):
+        #         oldSelectionImage.blit(Drawing.BallImages[balls.color], (0, i*(Drawing.CircleRadius*2+Drawing.CircleVerticalSpacing)))
+        #     index = self.tubes.index(oldSelection)
+        #     ccBefore = Drawing.getCircleCenter(oldSelection.__emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=True)
+        #     ccAfter = Drawing.getCircleCenter(oldSelection.__emptySlots, index % Drawing.TubesPerRow, index // Drawing.TubesPerRow, isPendingMove=False)
+        #     oldSelectionTopLeftStart = ccBefore[0] - Drawing.CircleRadius, ccBefore[1] - Drawing.CircleRadius
+        #     oldSelectionTopLeftEnd = ccAfter[0] - Drawing.CircleRadius, ccAfter[1] - Drawing.CircleRadius
+
+        # startTime = time.time()
+        # animationDuration = .1 # seconds
+        # progress = 0
+        # while progress < 1:
+        #     progress = (time.time() - startTime) / animationDuration
+        #     if progress >= 1:
+        #         progress = 1
+
+        #     self.__window.blit(background, (0,0))
+        #     if newSelectionImage:
+        #         self.__window.blit(newSelectionImage, TubeSet.interpolatePosition(newSelectionTopLeftStart, newSelectionTopLeftEnd, progress))
+        #     if oldSelectionImage:
+        #         self.__window.blit(oldSelectionImage, TubeSet.interpolatePosition(oldSelectionTopLeftStart, oldSelectionTopLeftEnd, progress))
+        #     pygame.display.flip()
+        return None
+
     def animateMove(self, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
-        background = pygame.surface.Surface(self.__window.get_size())
-        self.draw(background, None)
-        sourceIndex = self.tubes.index(source)
-        sourceRow = sourceIndex // Drawing.TubesPerRow
-        sourceColumn = sourceIndex % Drawing.TubesPerRow
-        targetIndex = self.tubes.index(target)
-        targetRow = targetIndex // Drawing.TubesPerRow
-        targetColumn = targetIndex % Drawing.TubesPerRow
-        interpolatorFunctions: list[Callable[[float], Tuple[float,float]]] = []
-        topOfSourceTube = Drawing.getCircleCenter(0, sourceColumn, sourceRow, sourceIsSelected)
-        topOfSourceTube = topOfSourceTube[0], topOfSourceTube[1] - Drawing.CircleRadius*2 + Drawing.CircleVerticalSpacing
-        topOfTargetTube = Drawing.getCircleCenter(0, targetColumn, targetRow, False)
-        topOfTargetTube = topOfTargetTube[0], topOfTargetTube[1] - Drawing.CircleRadius*2 + Drawing.CircleVerticalSpacing
-        for i in range(moving.count):
-            start = Drawing.getCircleCenter(source.emptySlots - moving.count + i, sourceColumn, sourceRow, sourceIsSelected)
-            end = Drawing.getCircleCenter(target.emptySlots - 1 - i, targetColumn, targetRow, False)
-            interpolatorFunctions.append( \
-                TubeSet.interpolate( [start,topOfSourceTube,topOfTargetTube,end] ))
+        # background = pygame.surface.Surface(self.__window.get_size())
+        # self.draw(background, None)
+        # sourceIndex = self.tubes.index(source)
+        # sourceRow = sourceIndex // Drawing.TubesPerRow
+        # sourceColumn = sourceIndex % Drawing.TubesPerRow
+        # targetIndex = self.tubes.index(target)
+        # targetRow = targetIndex // Drawing.TubesPerRow
+        # targetColumn = targetIndex % Drawing.TubesPerRow
+        # interpolatorFunctions: list[Callable[[float], Tuple[float,float]]] = []
+        # topOfSourceTube = Drawing.getCircleCenter(0, sourceColumn, sourceRow, sourceIsSelected)
+        # topOfSourceTube = topOfSourceTube[0], topOfSourceTube[1] - Drawing.CircleRadius*2 + Drawing.CircleVerticalSpacing
+        # topOfTargetTube = Drawing.getCircleCenter(0, targetColumn, targetRow, False)
+        # topOfTargetTube = topOfTargetTube[0], topOfTargetTube[1] - Drawing.CircleRadius*2 + Drawing.CircleVerticalSpacing
+        # for i in range(moving.count):
+        #     start = Drawing.getCircleCenter(source.__emptySlots - moving.count + i, sourceColumn, sourceRow, sourceIsSelected)
+        #     end = Drawing.getCircleCenter(target.__emptySlots - 1 - i, targetColumn, targetRow, False)
+        #     interpolatorFunctions.append( \
+        #         TubeSet.interpolate( [start,topOfSourceTube,topOfTargetTube,end] ))
 
-        startTime = time.time()
-        animationDuration = .25 # seconds
-        progress = 0
-        while progress < 1:
-            progress = (time.time() - startTime) / animationDuration
-            if progress >= 1:
-                progress = 1
+        # startTime = time.time()
+        # animationDuration = .25 # seconds
+        # progress = 0
+        # while progress < 1:
+        #     progress = (time.time() - startTime) / animationDuration
+        #     if progress >= 1:
+        #         progress = 1
 
-            self.__window.blit(background, (0,0))
-            for f in interpolatorFunctions:
-                center = f(progress)
-                topLeft = center[0] - Drawing.CircleRadius, center[1] - Drawing.CircleRadius
-                self.__window.blit(Drawing.BallImages[moving.color], topLeft)
-            pygame.display.flip()
+        #     self.__window.blit(background, (0,0))
+        #     for f in interpolatorFunctions:
+        #         center = f(progress)
+        #         topLeft = center[0] - Drawing.CircleRadius, center[1] - Drawing.CircleRadius
+        #         self.__window.blit(Drawing.BallImages[moving.color], topLeft)
+        #     pygame.display.flip()
         return None
 
     def setPendingMove(self, selectedTube: Optional[Tube]) -> None:
@@ -274,7 +267,7 @@ class TubeSet:
         if not self.undoStack:
             return
         moveToUndo = self.undoStack.pop()
-        moving = BallGroup(color = moveToUndo.target.ballGroups[0].color, count = moveToUndo.count)
+        moving = BallGroup(color = moveToUndo.target.peek().color, count = moveToUndo.count)
         moveToUndo.target.removeBalls(moveToUndo.count)
         self.animateMove(moveToUndo.target, moveToUndo.source, moving, False)
         moveToUndo.source.push(moving)
@@ -284,7 +277,7 @@ class TubeSet:
         if not self.redoStack:
             return
         moveToRedo = self.redoStack.pop()
-        moving = BallGroup(color = moveToRedo.source.ballGroups[0].color, count = moveToRedo.count)
+        moving = BallGroup(color = moveToRedo.source.peek().color, count = moveToRedo.count)
         moveToRedo.source.removeBalls(moveToRedo.count)
         self.animateMove(moveToRedo.source, moveToRedo.target, moving, False)
         moveToRedo.target.push(moving)
