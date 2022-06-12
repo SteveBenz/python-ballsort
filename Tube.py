@@ -1,4 +1,4 @@
-from typing import Final, Optional, Tuple
+from typing import Final, Optional, Tuple, Union
 import pygame
 from BallGroup import BallGroup
 from GameColors import GameColors
@@ -168,22 +168,21 @@ class Tube:
         else:
             return Tube.__cachedBallImages[color]
 
-    def draw(self, window: pygame.Surface, pendingMove: Optional[BallGroup]) -> None:
-        tubeCanBeNextMove = pendingMove != None and self.canAddBallGroup(pendingMove)
-        background = GameColors.ValidTargetTubeBackground if tubeCanBeNextMove else GameColors.TubeBackground
-        pygame.draw.rect(window, background, self.getTubeRectangle())
+    def draw(self, canAddHighlight: bool, isSourceHighlight: bool, highlightedColor: Union[int,None]) -> None:
+        backgroundColor = GameColors.ValidTargetTubeBackground if canAddHighlight else GameColors.TubeBackground
+        hintColor = GameColors.KeyboardHintCanMoveTo if canAddHighlight else GameColors.KeyboardHintNormal
+        pygame.draw.rect(self.__window, backgroundColor, self.getTubeRectangle())
 
         ballNumber = self.__emptySlots
         for group in self.__ballGroups:
-            image = self.getBallImage(group.color, pendingMove is not None and pendingMove.color == group.color)
+            image = self.getBallImage(group.color, group.color == highlightedColor)
             for _ in range(group.count):
-                window.blit(image, self.getBallPosition(ballNumber - (.5 if pendingMove is group else 0)))
+                self.__window.blit(image, self.getBallPosition(ballNumber - (.5 if isSourceHighlight and group is self.__ballGroups[0] else 0)))
                 ballNumber += 1
 
-        hintColor = GameColors.KeyboardHintCanMoveTo if tubeCanBeNextMove else GameColors.KeyboardHintNormal
         assert(Tube.__hintFont is not None)
         hintImage = Tube.__hintFont.render(self.__hintKey, True, hintColor)
         hintImageRect = hintImage.get_rect()
-        hintPositionAsBall = self.getBallPosition(-1 - (0 if self.get_isEmpty() or pendingMove != self.peek() else .5))
+        hintPositionAsBall = self.getBallPosition(-1 - (.5 if isSourceHighlight else 0))
         hintLeft: float = hintPositionAsBall.left + (hintPositionAsBall.width - hintImageRect.width)/2
-        window.blit(hintImage, (hintLeft, hintPositionAsBall.top))
+        self.__window.blit(hintImage, (hintLeft, hintPositionAsBall.top))

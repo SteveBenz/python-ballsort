@@ -82,9 +82,12 @@ class TubeSet:
     def getTubeForKeyStroke(self, keyboardId: int) -> Tube:
         return self.tubes[TubeSet.__tubeKeys.index(keyboardId)]
 
-    def draw(self, window: pygame.Surface, pendingMove: Optional[BallGroup]):
+    def draw(self) -> None:
         for tube in self.tubes:
-            tube.draw(window, pendingMove)
+            tube.draw(
+                canAddHighlight=self.pendingMove is not None and self.pendingMove is not tube and tube.canAddBallGroup(self.pendingMove.peek()),
+                isSourceHighlight=self.pendingMove is tube,
+                highlightedColor=self.pendingMove.peek().color if self.pendingMove else None)
     
     def tryGetAutoMove(self, source: Tube) -> Optional[Tube]:
         emptyValidMove = None
@@ -167,10 +170,16 @@ class TubeSet:
         background = pygame.Surface(animationArea.size)
 
         _ = selection.pop()
-        selection.draw(self.__window, None)
+        selection.draw(
+            canAddHighlight=False,
+            isSourceHighlight=False,
+            highlightedColor=selectionGroup.color)
         background.blit(self.__window, (0,0), animationArea)
         selection.push(selectionGroup)
-        selection.draw(self.__window, None)
+        selection.draw(
+            canAddHighlight=False,
+            isSourceHighlight=False,
+            highlightedColor=selectionGroup.color)
         justBallsRect = topBallRect.union(bottomBallRect)
         justBallsImage = pygame.Surface(justBallsRect.size)
         justBallsImage.blit(self.__window, (0,0), justBallsRect)
@@ -185,7 +194,7 @@ class TubeSet:
         newAnimation = self.makeSelectionAnimator(newSelection, True) if newSelection else None
         oldAnimation = self.makeSelectionAnimator(oldSelection, False) if oldSelection else None
         startTime = time.time()
-        animationDuration = .1 # seconds
+        animationDuration = 1.5 #.1 # seconds
         progress = 0.0
         while progress < 1:
             progress = (time.time() - startTime) / animationDuration
@@ -307,4 +316,4 @@ class TubeSet:
                 selectedTube: Optional[Tube] = self.tryFindTubeByPosition((x,y))
                 if selectedTube is not None:
                     self.doMove(selectedTube)
-        self.draw(self.__window, None if self.pendingMove is None else self.pendingMove.peek())
+        self.draw()
