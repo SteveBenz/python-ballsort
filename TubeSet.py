@@ -28,6 +28,7 @@ class TubeSet:
 
     def __init__(self, window: pygame.Surface, rect: pygame.Rect, numTubes: int, numFreeTubes: int, depth: int):
         self.__window = window
+        self.__depth = depth
         a = array('i', [0]*numTubes*depth)
         td = numTubes*depth
         for i in range(td):
@@ -54,6 +55,13 @@ class TubeSet:
         self.redoStack: list[MoveRecord] = []
         self.pendingMove: Optional[Tube] = None
 
+    def reposition(self, rect: pygame.Rect) -> None:
+        i = 0
+        for l in TubeSet.__getTubeLayout(rect, len(self.tubes), self.__depth):
+            self.tubes[i].rect = l
+            i += 1
+        return None
+
     @staticmethod
     def __getTubeLayout(rect: pygame.Rect, numTubes: int, numBalls: int) -> Iterable[pygame.Rect]:
         # Hard-coding to a two-row.  Better if we adjusted it based on the layout
@@ -66,12 +74,6 @@ class TubeSet:
             row = i // columns
             column = i % columns
             yield pygame.Rect(width*column, height*row, width, height)
-
-    # Tests to see if the top color block can be moved and, if so, to which
-    # tubes could it be added.
-    def canMove(self, slot: Tube) -> list[Tube]:
-        if slot.get_isEmpty(): return list()
-        return list(filter(lambda t: t != slot and slot.canAddBallGroup(slot.peek()), self.tubes))
 
     def isTubeKeyboardShortcut(self, keyboardId: int) -> bool:
         return keyboardId in TubeSet.__tubeKeys

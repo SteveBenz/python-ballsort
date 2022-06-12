@@ -45,7 +45,7 @@ class BallSortGame:
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
                     self.__tubes = TubeSet(self.__window, self.__window.get_rect(), 16, 3, 6) # type: ignore
                 elif event.type == pygame.VIDEORESIZE:
-                    print("fix resize")
+                    self.__tubes.reposition(self.__window.get_rect()) # type: ignore
                 else:
                     unhandledEvents.append(event)
 
