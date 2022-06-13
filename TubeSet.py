@@ -30,6 +30,7 @@ class TubeSet:
     def __init__(self, window: pygame.Surface, rect: pygame.Rect, numTubes: int, numFreeTubes: int, depth: int):
         self.__window = window
         self.__depth = depth
+        self.__rect = rect
         a = array('i', [0]*numTubes*depth)
         td = numTubes*depth
         for i in range(td):
@@ -61,7 +62,7 @@ class TubeSet:
         for l in TubeSet.__getTubeLayout(rect, len(self.tubes), self.__depth):
             self.tubes[i].rect = l
             i += 1
-        return None
+        self.__rect = rect
 
     @staticmethod
     def __getTubeLayout(rect: pygame.Rect, numTubes: int, numBalls: int) -> Iterable[pygame.Rect]:
@@ -199,46 +200,36 @@ class TubeSet:
                 updateAreas.append(newAnimation(progress))
             if oldAnimation:
                 updateAreas.append(oldAnimation(progress))
-
             pygame.display.update(updateAreas)  # type: ignore   Looks like a pylance bug
 
-        
-
     def animateMove(self, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
-        # background = pygame.surface.Surface(self.__window.get_size())
-        # self.draw(background, None)
-        # sourceIndex = self.tubes.index(source)
-        # sourceRow = sourceIndex // Drawing.TubesPerRow
-        # sourceColumn = sourceIndex % Drawing.TubesPerRow
-        # targetIndex = self.tubes.index(target)
-        # targetRow = targetIndex // Drawing.TubesPerRow
-        # targetColumn = targetIndex % Drawing.TubesPerRow
-        # interpolatorFunctions: list[Callable[[float], Tuple[float,float]]] = []
-        # topOfSourceTube = Drawing.getCircleCenter(0, sourceColumn, sourceRow, sourceIsSelected)
-        # topOfSourceTube = topOfSourceTube[0], topOfSourceTube[1] - Drawing.CircleRadius*2 + Drawing.CircleVerticalSpacing
-        # topOfTargetTube = Drawing.getCircleCenter(0, targetColumn, targetRow, False)
-        # topOfTargetTube = topOfTargetTube[0], topOfTargetTube[1] - Drawing.CircleRadius*2 + Drawing.CircleVerticalSpacing
-        # for i in range(moving.count):
-        #     start = Drawing.getCircleCenter(source.__emptySlots - moving.count + i, sourceColumn, sourceRow, sourceIsSelected)
-        #     end = Drawing.getCircleCenter(target.__emptySlots - 1 - i, targetColumn, targetRow, False)
-        #     interpolatorFunctions.append( \
-        #         TubeSet.interpolate( [start,topOfSourceTube,topOfTargetTube,end] ))
+        self.pendingMove = None
+        self.draw()
+        background = pygame.surface.Surface(self.__rect.size)
+        background.blit(self.__window, (0,0), self.__rect)
+        interpolatorFunctions: list[Callable[[float], Tuple[float,float]]] = []
+        ballImage = source.getBallImage(moving.color, isHighlighted=False)
 
-        # startTime = time.time()
-        # animationDuration = .25 # seconds
-        # progress = 0
-        # while progress < 1:
-        #     progress = (time.time() - startTime) / animationDuration
-        #     if progress >= 1:
-        #         progress = 1
+        topOfSourceTube: Tuple[float,float] = source.getBallPosition(-1).topleft
+        topOfTargetTube: Tuple[float,float] = target.getBallPosition(-1).topleft
+        for i in range(moving.count):
+            start: Tuple[float,float] = source.getBallPosition(source.emptySlots - moving.count + i - (.5 if sourceIsSelected else 0)).topleft
+            end: Tuple[float,float] = target.getBallPosition(target.emptySlots - 1 - i).topleft
+            interpolatorFunctions.append( \
+                TubeSet.interpolate( [start,topOfSourceTube,topOfTargetTube,end] ))
 
-        #     self.__window.blit(background, (0,0))
-        #     for f in interpolatorFunctions:
-        #         center = f(progress)
-        #         topLeft = center[0] - Drawing.CircleRadius, center[1] - Drawing.CircleRadius
-        #         self.__window.blit(Drawing.BallImages[moving.color], topLeft)
-        #     pygame.display.flip()
-        return None
+        startTime = time.time()
+        animationDuration = .25 # seconds
+        progress = 0
+        while progress < 1:
+            progress = (time.time() - startTime) / animationDuration
+            if progress >= 1:
+                progress = 1
+            self.__window.blit(background, self.__rect.topleft)
+            for f in interpolatorFunctions:
+                topLeft = f(progress)
+                self.__window.blit(ballImage, topLeft)
+            pygame.display.update(self.__rect)
 
     def setPendingMove(self, selectedTube: Optional[Tube]) -> None:
         if selectedTube is not self.pendingMove:
