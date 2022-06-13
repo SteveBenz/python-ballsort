@@ -252,6 +252,7 @@ class TubeSet:
             self.setPendingMove(selectedTube)
 
     def undo(self):
+        self.setPendingMove(None)
         if not self.undoStack:
             return
         moveToUndo = self.undoStack.pop()
@@ -262,6 +263,7 @@ class TubeSet:
         self.redoStack.append(moveToUndo)
 
     def redo(self):
+        self.setPendingMove(None)
         if not self.redoStack:
             return
         moveToRedo = self.redoStack.pop()
@@ -271,6 +273,12 @@ class TubeSet:
         moveToRedo.target.push(moving)
         self.undoStack.append(moveToRedo)
 
+    def undoToCheckpoint(self):
+        self.setPendingMove(None)
+        oldEmptyCount = self.numEmptyTubes()
+        while any(self.undoStack) and self.numEmptyTubes() <= oldEmptyCount:
+            self.undo()
+            
     def update(self, events: list[pygame.event.Event]) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -278,15 +286,10 @@ class TubeSet:
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
                 self.setPendingMove(self.tryFindMove(self.pendingMove))
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL and event.mod & pygame.KMOD_SHIFT:
-                self.setPendingMove(None)
-                oldEmptyCount = self.numEmptyTubes()
-                while any(self.undoStack) and self.numEmptyTubes() <= oldEmptyCount:
-                    self.undo()
+                self.undoToCheckpoint()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL:
-                self.setPendingMove(None)
                 self.undo()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_y and event.mod & pygame.KMOD_CTRL:
-                self.setPendingMove(None)
                 self.redo()
             elif event.type == pygame.KEYDOWN and (self.isTubeKeyboardShortcut(event.key) or event.key == pygame.K_SPACE):
                 if event.key == pygame.K_SPACE:
