@@ -55,7 +55,7 @@ class BallSortGame:
         self.__window = pygame.display.set_mode(defaultScreenSize, pygame.RESIZABLE)
         self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(defaultScreenSize), 16, 3, 6)  # type: ignore
         r = BallSortGame.getUndoButtonPosition(defaultScreenSize)
-        for t in [("undo", self.__tubes.undo), ("UNDO", self.__tubes.undoToCheckpoint), ("redo", self.__tubes.redo)]:
+        for t in [("undo", self.__tubes.undo), ("UNDO", self.__tubes.undoToCheckpoint), ("redo", self.__tubes.redo), ("new", self.__restart)]:
             text, action = t
             self.__buttons.append(
                 Button(self.__window, r.left, r.top, r.width, r.height, **{"text": text, "onClick": action})
@@ -69,12 +69,16 @@ class BallSortGame:
         b.setHeight(r.height) # type: ignore
 
     def __onResize(self):
-        defaultScreenSize = self.__window.get_rect()
-        self.__tubes.reposition(BallSortGame.getTubesPosition(defaultScreenSize.size))
-        r = BallSortGame.getUndoButtonPosition(defaultScreenSize.size)
+        screenSize = self.__window.get_rect()
+        self.__tubes.reposition(BallSortGame.getTubesPosition(screenSize.size)) # type: ignore  Rect rect.Rect
+        r = BallSortGame.getUndoButtonPosition(screenSize.size)
         for b in self.__buttons:
             self.__setButtonPos(b, r)
             r = r.move(0, r.height + BallSortGame.__ButtonMargins)
+
+    def __restart(self):
+        screenSize = self.__window.get_rect()
+        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize.size), 16, 3, 6) # type: ignore
 
     def main(self) -> None:
         pygame.display.set_caption("Ball Sort")
@@ -89,7 +93,7 @@ class BallSortGame:
                 if event.type == pygame.QUIT:
                     closing = True
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
-                    self.__tubes = TubeSet(self.__window, self.__window.get_rect(), 16, 3, 6) # type: ignore
+                    self.__restart()
                 elif event.type == pygame.VIDEORESIZE:
                     self.__onResize()
                 else:
