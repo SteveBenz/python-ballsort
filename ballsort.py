@@ -14,13 +14,9 @@ from TubeSet import TubeSet
 
 # TODO:
 # Refactor
-#   Use the "Update" paradigm of widgets
+#   Import classes?
 # Double-clicking a tube does a move
 # Buttons:
-#   Undo
-#   Undo-to-checkpoint
-#   ReDo
-#   New Game
 #   Game Size
 # Better like-colors highlight
 # Save State
@@ -55,7 +51,11 @@ class BallSortGame:
         self.__window = pygame.display.set_mode(defaultScreenSize, pygame.RESIZABLE)
         self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(defaultScreenSize), 16, 3, 6)  # type: ignore
         r = BallSortGame.getUndoButtonPosition(defaultScreenSize)
-        for t in [("undo", self.__tubes.undo), ("UNDO", self.__tubes.undoToCheckpoint), ("redo", self.__tubes.redo), ("new", self.__restart)]:
+        for t in [("undo", self.__tubes.undo),
+                  ("UNDO", self.__tubes.undoToCheckpoint),
+                  ("redo", self.__tubes.redo),
+                  ("suggest", self.__tubes.suggest),
+                  ("new", self.__restart)]:
             text, action = t
             self.__buttons.append(
                 Button(self.__window, r.left, r.top, r.width, r.height, **{"text": text, "onClick": action})

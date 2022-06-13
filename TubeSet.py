@@ -278,13 +278,17 @@ class TubeSet:
         oldEmptyCount = self.numEmptyTubes()
         while any(self.undoStack) and self.numEmptyTubes() <= oldEmptyCount:
             self.undo()
-            
+
+    def suggest(self):
+        self.setPendingMove(self.tryFindMove(self.pendingMove))
+
+
     def update(self, events: list[pygame.event.Event]) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.setPendingMove(None)
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_TAB:
-                self.setPendingMove(self.tryFindMove(self.pendingMove))
+                self.suggest()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL and event.mod & pygame.KMOD_SHIFT:
                 self.undoToCheckpoint()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_z and event.mod & pygame.KMOD_CTRL:
