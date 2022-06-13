@@ -164,7 +164,6 @@ class TubeSet:
     def makeSelectionAnimator(self, selection: Tube, isIncoming: bool) -> Callable[[float], pygame.Rect]:
         selectionGroup = selection.peek()
         topBallRectHigh = selection.getBallPosition(selection.emptySlots-.5)
-        topBallRect = selection.getBallPosition(selection.emptySlots)
         bottomBallRect = selection.getBallPosition(selection.emptySlots+selectionGroup.count-1)
         animationArea = topBallRectHigh.union(bottomBallRect)
         background = pygame.Surface(animationArea.size)
@@ -176,17 +175,12 @@ class TubeSet:
             highlightedColor=selectionGroup.color)
         background.blit(self.__window, (0,0), animationArea)
         selection.push(selectionGroup)
-        selection.draw(
-            canAddHighlight=False,
-            isSourceHighlight=False,
-            highlightedColor=selectionGroup.color)
-        justBallsRect = topBallRect.union(bottomBallRect)
-        justBallsImage = pygame.Surface(justBallsRect.size)
-        justBallsImage.blit(self.__window, (0,0), justBallsRect)
+        ballImage = selection.getBallImage(selectionGroup.color, isHighlighted=True)
         def animation(position: float) -> pygame.Rect:
-            offset = (1-position if isIncoming else position) * (topBallRect.top - topBallRectHigh.top)
             self.__window.blit(background, animationArea)
-            self.__window.blit(justBallsImage, (animationArea.left, animationArea.top+offset))
+            for ballTubePosition in range(selection.emptySlots, selection.emptySlots+selectionGroup.count):
+                target = selection.getBallPosition(ballTubePosition - .5*(position if isIncoming else 1-position))
+                self.__window.blit(ballImage, target)
             return animationArea  # type: ignore
         return animation
     
@@ -194,7 +188,7 @@ class TubeSet:
         newAnimation = self.makeSelectionAnimator(newSelection, True) if newSelection else None
         oldAnimation = self.makeSelectionAnimator(oldSelection, False) if oldSelection else None
         startTime = time.time()
-        animationDuration = 1.5 #.1 # seconds
+        animationDuration = .1 # seconds
         progress = 0.0
         while progress < 1:
             progress = (time.time() - startTime) / animationDuration
