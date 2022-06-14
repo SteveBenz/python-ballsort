@@ -71,7 +71,7 @@ class TubeSet:
         for i in range(numTubes):
             row = i // columns
             column = i % columns
-            yield pygame.Rect(width*column, height*row, width, height)
+            yield pygame.Rect(width*column + rect.left, height*row + rect.top, width, height)
 
     def isTubeKeyboardShortcut(self, keyboardId: int) -> bool:
         return keyboardId in TubeSet.__tubeKeys
@@ -287,8 +287,8 @@ class TubeSet:
 
     def undoToCheckpoint(self):
         self.setPendingMove(None)
-        oldEmptyCount = self.numEmptyTubes()
-        while any(self.__undoStack) and self.numEmptyTubes() <= oldEmptyCount:
+        oldEmptyCount = self.numEmptyTubes
+        while any(self.__undoStack) and self.numEmptyTubes <= oldEmptyCount:
             self.undo()
 
     def suggest(self):

@@ -118,8 +118,8 @@ class BallSortGame:
 
     def __restart(self):
         screenSize = self.__window.get_rect()
-        balls = BallSortGame.__generateRandomBallSet(self.__tubes.numTotalTubes - self.__tubes.numEmptyTubes, self.__tubes.numEmptyTubes, self.__tubes.numBallsPerTube)
-        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize.size), self.__tubes.numBallsPerTube, balls)  # type: ignore
+        balls = BallSortGame.__generateRandomBallSet(16, 3, 6)
+        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize.size), 6, balls)  # type: ignore
     
 
     @staticmethod
