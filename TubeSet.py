@@ -1,7 +1,4 @@
-
-from array import array
 import math
-import random
 import time
 from typing import Callable, Iterable, Optional, Tuple
 
@@ -27,40 +24,33 @@ class TubeSet:
         pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v, pygame.K_b
     )
 
-    def __init__(self, window: pygame.Surface, rect: pygame.Rect, numTubes: int, numFreeTubes: int, depth: int):
+    def __init__(self, window: pygame.Surface, rect: pygame.Rect, depth: int, balls:Iterable[Iterable[int]]):
         self.__window = window
         self.__depth = depth
         self.__rect = rect
-        a = array('i', [0]*numTubes*depth)
-        td = numTubes*depth
-        for i in range(td):
-            a[i] = i % numTubes
-        for i in range(td):
-            swapWith = random.randint(i,td-1)
-            if swapWith != i:
-                h = a[i]
-                a[i] = a[swapWith]
-                a[swapWith] = h
 
-        # Hard code to a two-row setup with 10% space above each.
-        self.tubes: list[Tube] = []
+        self.__tubes: list[Tube] = []
         i = 0
-        for tubeRect in TubeSet.__getTubeLayout(rect, numTubes + numFreeTubes, depth):
-            self.tubes.append(Tube(window, tubeRect, TubeSet.__keyboardHintCharacters[i], depth))
+        ballsList = list(balls)
+        for tubeRect in TubeSet.__getTubeLayout(rect, len(ballsList), depth):
+            self.__tubes.append(Tube(window, tubeRect, TubeSet.__keyboardHintCharacters[i], depth))
             i += 1
 
-        for i in range(numTubes):
-            for j in range(depth):
-                self.tubes[i].push(BallGroup(color=a[i*depth+j], count=1))
+        i = 0
+        for batch in ballsList:
+            tube = self.__tubes[i]
+            i += 1
+            for color in batch:
+                tube.push(BallGroup(color=color, count=1))
 
-        self.undoStack: list[MoveRecord] = []
-        self.redoStack: list[MoveRecord] = []
-        self.pendingMove: Optional[Tube] = None
+        self.__undoStack: list[MoveRecord] = []
+        self.__redoStack: list[MoveRecord] = []
+        self.__pendingMove: Optional[Tube] = None
 
     def reposition(self, rect: pygame.Rect) -> None:
         i = 0
-        for l in TubeSet.__getTubeLayout(rect, len(self.tubes), self.__depth):
-            self.tubes[i].rect = l
+        for l in TubeSet.__getTubeLayout(rect, len(self.__tubes), self.__depth):
+            self.__tubes[i].rect = l
             i += 1
         self.__rect = rect
 
@@ -81,18 +71,18 @@ class TubeSet:
         return keyboardId in TubeSet.__tubeKeys
 
     def getTubeForKeyStroke(self, keyboardId: int) -> Tube:
-        return self.tubes[TubeSet.__tubeKeys.index(keyboardId)]
+        return self.__tubes[TubeSet.__tubeKeys.index(keyboardId)]
 
     def draw(self) -> None:
-        for tube in self.tubes:
+        for tube in self.__tubes:
             tube.draw(
-                canAddHighlight=self.pendingMove is not None and self.pendingMove is not tube and tube.canAddBallGroup(self.pendingMove.peek()),
-                isSourceHighlight=self.pendingMove is tube,
-                highlightedColor=self.pendingMove.peek().color if self.pendingMove else None)
+                canAddHighlight=self.__pendingMove is not None and self.__pendingMove is not tube and tube.canAddBallGroup(self.__pendingMove.peek()),
+                isSourceHighlight=self.__pendingMove is tube,
+                highlightedColor=self.__pendingMove.peek().color if self.__pendingMove else None)
     
     def tryGetAutoMove(self, source: Tube) -> Optional[Tube]:
         emptyValidMove = None
-        for t in self.tubes:
+        for t in self.__tubes:
             if source is t: continue
             if t.get_isEmpty():
                 if emptyValidMove is None:
@@ -104,11 +94,11 @@ class TubeSet:
     def tryFindMove(self, existingMove: Optional[Tube]) -> Optional[Tube]:
         hitExistingMove = existingMove is None
         firstValidMove = None
-        for source in self.tubes:
+        for source in self.__tubes:
             if source.get_isEmpty():
                 continue
             sourcePeek = source.peek()
-            for target in self.tubes:
+            for target in self.__tubes:
                 if target is not source and target.canAddBallGroup(sourcePeek):
                     if firstValidMove is None:
                         firstValidMove = source
@@ -119,13 +109,22 @@ class TubeSet:
         return firstValidMove
 
     def tryFindTubeByPosition(self, position: Tuple[int,int]) -> Optional[Tube]:
-        for t in self.tubes:
+        for t in self.__tubes:
             if t.rect.collidepoint(position):
                 return t
         return None
     
+    @property
     def numEmptyTubes(self) -> int:
-        return sum(1 for t in self.tubes if t.get_isEmpty())
+        return sum(1 for t in self.__tubes if t.get_isEmpty())
+
+    @property
+    def numTotalTubes(self) -> int:
+        return len(self.__tubes)
+
+    @property
+    def numBallsPerTube(self) -> int:
+        return self.__depth
 
     @staticmethod
     def interpolatePosition(start: Tuple[float,float], end: Tuple[float,float], progress: float) -> Tuple[float,float]:
@@ -203,7 +202,7 @@ class TubeSet:
             pygame.display.update(updateAreas)  # type: ignore   Looks like a pylance bug
 
     def animateMove(self, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
-        self.pendingMove = None
+        self.__pendingMove = None
         self.draw()
         background = pygame.surface.Surface(self.__rect.size)
         background.blit(self.__window, (0,0), self.__rect)
@@ -232,55 +231,62 @@ class TubeSet:
             pygame.display.update(self.__rect)
 
     def setPendingMove(self, selectedTube: Optional[Tube]) -> None:
-        if selectedTube is not self.pendingMove:
-            self.animateSelection(selectedTube, self.pendingMove)
-            self.pendingMove = selectedTube
+        if selectedTube is not self.__pendingMove:
+            self.animateSelection(selectedTube, self.__pendingMove)
+            self.__pendingMove = selectedTube
 
     def doMove(self, selectedTube: Tube):
-        if self.pendingMove is selectedTube:
-            self.setPendingMove(None)
-        elif self.pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
+        def actuallyDoMove(source: Tube, target: Tube) -> None:
+            self.__undoStack.append(MoveRecord(source, target))
+            self.__redoStack.clear()
+            moving = source.pop()
+            self.animateMove(source, target, moving, True)
+            target.push(moving)
+            self.__pendingMove = None
+
+        if self.__pendingMove and self.__pendingMove is selectedTube:
+            target = self.tryGetAutoMove(self.__pendingMove)
+            if target:
+                actuallyDoMove(self.__pendingMove, target)
+            else:
+                self.setPendingMove(None)
+        elif self.__pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
             self.setPendingMove(selectedTube)
-        elif self.pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroup(self.pendingMove.peek()):
-            self.undoStack.append(MoveRecord(self.pendingMove, selectedTube))
-            self.redoStack.clear()
-            moving = self.pendingMove.pop()
-            self.animateMove(self.pendingMove, selectedTube, moving, True)
-            selectedTube.push(moving)
-            self.pendingMove = None
+        elif self.__pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroup(self.__pendingMove.peek()):
+            actuallyDoMove(self.__pendingMove, selectedTube)
         elif not selectedTube.get_isEmpty():
             self.setPendingMove(selectedTube)
 
     def undo(self):
         self.setPendingMove(None)
-        if not self.undoStack:
+        if not self.__undoStack:
             return
-        moveToUndo = self.undoStack.pop()
+        moveToUndo = self.__undoStack.pop()
         moving = BallGroup(color = moveToUndo.target.peek().color, count = moveToUndo.count)
         moveToUndo.target.removeBalls(moveToUndo.count)
         self.animateMove(moveToUndo.target, moveToUndo.source, moving, False)
         moveToUndo.source.push(moving)
-        self.redoStack.append(moveToUndo)
+        self.__redoStack.append(moveToUndo)
 
     def redo(self):
         self.setPendingMove(None)
-        if not self.redoStack:
+        if not self.__redoStack:
             return
-        moveToRedo = self.redoStack.pop()
+        moveToRedo = self.__redoStack.pop()
         moving = BallGroup(color = moveToRedo.source.peek().color, count = moveToRedo.count)
         moveToRedo.source.removeBalls(moveToRedo.count)
         self.animateMove(moveToRedo.source, moveToRedo.target, moving, False)
         moveToRedo.target.push(moving)
-        self.undoStack.append(moveToRedo)
+        self.__undoStack.append(moveToRedo)
 
     def undoToCheckpoint(self):
         self.setPendingMove(None)
         oldEmptyCount = self.numEmptyTubes()
-        while any(self.undoStack) and self.numEmptyTubes() <= oldEmptyCount:
+        while any(self.__undoStack) and self.numEmptyTubes() <= oldEmptyCount:
             self.undo()
 
     def suggest(self):
-        self.setPendingMove(self.tryFindMove(self.pendingMove))
+        self.setPendingMove(self.tryFindMove(self.__pendingMove))
 
 
     def update(self, events: list[pygame.event.Event]) -> None:
@@ -297,7 +303,7 @@ class TubeSet:
                 self.redo()
             elif event.type == pygame.KEYDOWN and (self.isTubeKeyboardShortcut(event.key) or event.key == pygame.K_SPACE):
                 if event.key == pygame.K_SPACE:
-                    selectedTube = None if self.pendingMove is None else self.tryGetAutoMove(self.pendingMove)
+                    selectedTube = None if self.__pendingMove is None else self.tryGetAutoMove(self.__pendingMove)
                 else:
                     selectedTube = self.getTubeForKeyStroke(event.key)
 

@@ -1,12 +1,13 @@
+from random import randint
 import time
 from typing import Tuple
 import pygame
 from pygame.rect import Rect
 import pygame_widgets
 from pygame_widgets.button import Button
-
 from GameColors import GameColors
 from TubeSet import TubeSet
+import json
 
 # To install requirements:
 #  py -m pip uninstall pygame
@@ -15,7 +16,6 @@ from TubeSet import TubeSet
 # TODO:
 # Refactor
 #   Import classes?
-# Double-clicking a tube does a move
 # Buttons:
 #   Game Size
 # Better like-colors highlight
@@ -30,6 +30,12 @@ class BallSortGame:
     __ButtonHeight = 20
 
     __buttons: list[Button] = []
+
+    class __SerializedGameState:
+        width: int
+        height: int
+        ballsPerTube: int
+        balls: list[list[int]]
 
     @staticmethod
     def getTubesPosition(screenSize: Tuple[float,float]) -> Rect:
@@ -46,11 +52,22 @@ class BallSortGame:
         w,_ = screenSize
         return Rect(w + BallSortGame.__ButtonMargins - BallSortGame.__ButtonRackWidth, BallSortGame.__ButtonMargins, BallSortGame.__ButtonWidth, BallSortGame.__ButtonHeight)
 
+    @staticmethod
+    def __load() -> __SerializedGameState:
+        # TODO: Load __settings from a file
+        defaultState = BallSortGame.__SerializedGameState()
+        defaultState.width = 800
+        defaultState.height = 600
+        defaultState.ballsPerTube = 6
+        defaultState.balls = BallSortGame.__generateRandomBallSet(16, 3, defaultState.ballsPerTube)
+        return defaultState
+
     def __init__(self):
-        defaultScreenSize = (800,600)
-        self.__window = pygame.display.set_mode(defaultScreenSize, pygame.RESIZABLE)
-        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(defaultScreenSize), 16, 3, 6)  # type: ignore
-        r = BallSortGame.getUndoButtonPosition(defaultScreenSize)
+        settings = BallSortGame.__load()
+        screenSize = (settings.width, settings.height)
+        self.__window = pygame.display.set_mode(screenSize, pygame.RESIZABLE)
+        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize), settings.ballsPerTube, settings.balls)  # type: ignore
+        r = BallSortGame.getUndoButtonPosition(screenSize)
         for t in [("undo", self.__tubes.undo),
                   ("UNDO", self.__tubes.undoToCheckpoint),
                   ("redo", self.__tubes.redo),
@@ -78,7 +95,34 @@ class BallSortGame:
 
     def __restart(self):
         screenSize = self.__window.get_rect()
-        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize.size), 16, 3, 6) # type: ignore
+        balls = BallSortGame.__generateRandomBallSet(self.__tubes.numTotalTubes - self.__tubes.numEmptyTubes, self.__tubes.numEmptyTubes, self.__tubes.numBallsPerTube)
+        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize.size), self.__tubes.numBallsPerTube, balls)  # type: ignore
+    
+
+    @staticmethod
+    def __generateRandomBallSet(numFilledTubes: int, numEmptyTubes: int, depth: int) -> list[list[int]]:
+        td = numFilledTubes*depth
+        a = [0]*td
+        for i in range(td):
+            a[i] = i % numFilledTubes
+        for i in range(td):
+            swapWith = randint(i,td-1)
+            if swapWith != i:
+                h = a[i]
+                a[i] = a[swapWith]
+                a[swapWith] = h
+        batches: list[list[int]] = []
+        batch: list[int] = []
+        batchCount = 0
+        for i in a:
+            batch.append(i)
+            if len(batch) == depth:
+                batchCount += 1
+                batches.append(batch)
+                batch = []
+        for i in range(numEmptyTubes):
+            batches.append([])
+        return batches
 
     def main(self) -> None:
         pygame.display.set_caption("Ball Sort")
