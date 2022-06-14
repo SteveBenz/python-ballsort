@@ -1,3 +1,4 @@
+import os
 from random import randint
 import time
 from typing import Tuple
@@ -19,7 +20,6 @@ import json
 # Buttons:
 #   Game Size
 # Better like-colors highlight
-# Save State
 # Allow transfers of partial stacks
 # Detect Win and Loss
 
@@ -51,16 +51,39 @@ class BallSortGame:
     def getUndoButtonPosition(screenSize: Tuple[float,float]) -> Rect:
         w,_ = screenSize
         return Rect(w + BallSortGame.__ButtonMargins - BallSortGame.__ButtonRackWidth, BallSortGame.__ButtonMargins, BallSortGame.__ButtonWidth, BallSortGame.__ButtonHeight)
+        
+    __stateFileName = os.path.join(os.environ['TEMP'], "pyballsort.json")
 
     @staticmethod
     def __load() -> __SerializedGameState:
-        # TODO: Load __settings from a file
-        defaultState = BallSortGame.__SerializedGameState()
-        defaultState.width = 800
-        defaultState.height = 600
-        defaultState.ballsPerTube = 6
-        defaultState.balls = BallSortGame.__generateRandomBallSet(16, 3, defaultState.ballsPerTube)
-        return defaultState
+        try:
+            with open(BallSortGame.__stateFileName, 'r') as stateFile:
+                jsonSettings = json.load(stateFile)
+            loadedState = BallSortGame.__SerializedGameState()
+            loadedState.balls = jsonSettings['balls']
+            loadedState.ballsPerTube = jsonSettings['ballsPerTube']
+            loadedState.height = jsonSettings['height']
+            loadedState.width = jsonSettings['width']
+            return loadedState
+        except:
+            defaultState = BallSortGame.__SerializedGameState()
+            defaultState.width = 800
+            defaultState.height = 600
+            defaultState.ballsPerTube = 6
+            defaultState.balls = BallSortGame.__generateRandomBallSet(16, 3, defaultState.ballsPerTube)
+            return defaultState
+    
+    def __save(self) -> None:
+        state = BallSortGame.__SerializedGameState()
+        state.balls = self.__tubes.serialize()
+        state.ballsPerTube = self.__tubes.numBallsPerTube
+        r = self.__window.get_rect()
+        state.height = r.height
+        state.width = r.width
+        
+        with open(BallSortGame.__stateFileName, 'w') as stateFile:
+            stateFile.write(json.dumps(state.__dict__, indent=True))
+        return None
 
     def __init__(self):
         settings = BallSortGame.__load()
@@ -148,6 +171,7 @@ class BallSortGame:
             time.sleep(.01)
             pygame_widgets.update(unhandledEvents) # type: ignore
             pygame.display.update()
+        self.__save()
 
 pygame.init()
 pygame.font.init()

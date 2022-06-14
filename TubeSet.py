@@ -46,6 +46,12 @@ class TubeSet:
         self.__undoStack: list[MoveRecord] = []
         self.__redoStack: list[MoveRecord] = []
         self.__pendingMove: Optional[Tube] = None
+    
+    def serialize(self) -> list[list[int]]:
+        batches: list[list[int]] = []
+        for t in self.__tubes:
+            batches.append(t.serialize())
+        return batches
 
     def reposition(self, rect: pygame.Rect) -> None:
         i = 0

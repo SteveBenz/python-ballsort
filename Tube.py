@@ -49,6 +49,13 @@ class Tube:
     def peek(self) -> BallGroup:
         return self.__ballGroups[0]
 
+    def serialize(self) -> list[int]:
+        batch: list[int] = []
+        for g in self.__ballGroups:
+            for _ in range(g.count):
+                batch.insert(0, g.color)
+        return batch
+
     @property
     def emptySlots(self) -> int:
         return self.__emptySlots
