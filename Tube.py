@@ -60,9 +60,14 @@ class Tube:
     def emptySlots(self) -> int:
         return self.__emptySlots
 
-    def pop(self) -> BallGroup:
-        r = self.__ballGroups.pop(0)
-        self.__emptySlots += r.count
+    def pop(self, numBalls: int) -> BallGroup:
+        assert self.__ballGroups[0].count >= numBalls
+        if self.__ballGroups[0].count == numBalls:
+            r = self.__ballGroups.pop(0)
+        else:
+            self.__ballGroups[0].count -= numBalls
+            r = BallGroup(self.__ballGroups[0].color, numBalls)
+        self.__emptySlots += numBalls
         return r
 
     def removeBalls(self, count: int) -> None:
@@ -80,6 +85,11 @@ class Tube:
 
     def canAddBallGroup(self, group: BallGroup) -> bool:
         if self.__emptySlots < group.count: return False
+        if len(self.__ballGroups) == 0: return True
+        return self.__ballGroups[0].color == group.color
+
+    def canAddBallGroupPartial(self, group: BallGroup) -> bool:
+        if self.__emptySlots == 0: return False
         if len(self.__ballGroups) == 0: return True
         return self.__ballGroups[0].color == group.color
 

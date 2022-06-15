@@ -174,7 +174,7 @@ class TubeSet:
         animationArea = topBallRectHigh.union(bottomBallRect)
         background = pygame.Surface(animationArea.size)
 
-        _ = selection.pop()
+        _ = selection.pop(selectionGroup.count)
         selection.draw(
             canAddHighlight=False,
             isSourceHighlight=False,
@@ -243,12 +243,12 @@ class TubeSet:
 
     def doMove(self, selectedTube: Tube):
         def actuallyDoMove(source: Tube, target: Tube) -> None:
-            self.__undoStack.append(MoveRecord(source, target))
             self.__redoStack.clear()
-            moving = source.pop()
+            moving = source.pop(min(target.emptySlots, source.peek().count))
             self.animateMove(source, target, moving, True)
             target.push(moving)
             self.__pendingMove = None
+            self.__undoStack.append(MoveRecord(source, target, moving))
 
         if self.__pendingMove and self.__pendingMove is selectedTube:
             target = self.tryGetAutoMove(self.__pendingMove)
@@ -258,7 +258,7 @@ class TubeSet:
                 self.setPendingMove(None)
         elif self.__pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
             self.setPendingMove(selectedTube)
-        elif self.__pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroup(self.__pendingMove.peek()):
+        elif self.__pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroupPartial(self.__pendingMove.peek()):
             actuallyDoMove(self.__pendingMove, selectedTube)
         elif not selectedTube.get_isEmpty():
             self.setPendingMove(selectedTube)

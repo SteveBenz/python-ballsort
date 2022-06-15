@@ -15,12 +15,11 @@ import json
 #  py -m pip install pygame_widgets
 
 # TODO:
+# Undo-Redo not saved
 # Refactor
 #   Import classes?
-# Buttons:
-#   Game Size
+# Game Size
 # Better like-colors highlight
-# Allow transfers of partial stacks
 # Detect Win and Loss
 
 class BallSortGame:
@@ -88,7 +87,7 @@ class BallSortGame:
     def __init__(self):
         settings = BallSortGame.__load()
         screenSize = (settings.width, settings.height)
-        self.__window = pygame.display.set_mode(screenSize, pygame.RESIZABLE)
+        self.__window = pygame.display.set_mode(screenSize, pygame.RESIZABLE, display=0)
         self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize), settings.ballsPerTube, settings.balls)  # type: ignore
         r = BallSortGame.getUndoButtonPosition(screenSize)
         for t in [("undo", self.__tubes.undo),
