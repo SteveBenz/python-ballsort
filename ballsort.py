@@ -1,7 +1,6 @@
 import os
-from random import randint
 import time
-from typing import Tuple
+from typing import Any, Optional, Tuple
 import pygame
 from pygame.rect import Rect
 import pygame_widgets
@@ -15,12 +14,14 @@ import json
 #  py -m pip install pygame_widgets
 
 # TODO:
-# Undo-Redo not saved
 # Refactor
-#   Import classes?
+#   Fix # Type suppress things
 # Game Size
+# Adjust layout to fit space given
 # Better like-colors highlight
 # Detect Win and Loss
+
+
 
 class BallSortGame:
     __ButtonMargins = 3
@@ -29,12 +30,6 @@ class BallSortGame:
     __ButtonHeight = 20
 
     __buttons: list[Button] = []
-
-    class __SerializedGameState:
-        width: int
-        height: int
-        ballsPerTube: int
-        balls: list[list[int]]
 
     @staticmethod
     def getTubesPosition(screenSize: Tuple[float,float]) -> Rect:
@@ -54,41 +49,32 @@ class BallSortGame:
     __stateFileName = os.path.join(os.environ['TEMP'], "pyballsort.json")
 
     @staticmethod
-    def __load() -> __SerializedGameState:
+    def __load() -> Optional[dict[str,Any]]:
         try:
             with open(BallSortGame.__stateFileName, 'r') as stateFile:
-                jsonSettings = json.load(stateFile)
-            loadedState = BallSortGame.__SerializedGameState()
-            loadedState.balls = jsonSettings['balls']
-            loadedState.ballsPerTube = jsonSettings['ballsPerTube']
-            loadedState.height = jsonSettings['height']
-            loadedState.width = jsonSettings['width']
-            return loadedState
+                return json.load(stateFile)
         except:
-            defaultState = BallSortGame.__SerializedGameState()
-            defaultState.width = 800
-            defaultState.height = 600
-            defaultState.ballsPerTube = 6
-            defaultState.balls = BallSortGame.__generateRandomBallSet(16, 3, defaultState.ballsPerTube)
-            return defaultState
+            return None
     
     def __save(self) -> None:
-        state = BallSortGame.__SerializedGameState()
-        state.balls = self.__tubes.serialize()
-        state.ballsPerTube = self.__tubes.numBallsPerTube
+        d = self.__tubes.serialize()
         r = self.__window.get_rect()
-        state.height = r.height
-        state.width = r.width
+        d['width'] = r.width
+        d['height'] = r.height
         
         with open(BallSortGame.__stateFileName, 'w') as stateFile:
-            stateFile.write(json.dumps(state.__dict__, indent=True))
+            stateFile.write(json.dumps(d, indent=True))
         return None
 
     def __init__(self):
         settings = BallSortGame.__load()
-        screenSize = (settings.width, settings.height)
+        screenSize = (settings['width'], settings['height']) if settings else (800,600)
         self.__window = pygame.display.set_mode(screenSize, pygame.RESIZABLE, display=0)
-        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize), settings.ballsPerTube, settings.balls)  # type: ignore
+        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize))  # type: ignore
+        if settings:
+            self.__tubes.loadGame(settings)
+        else:
+            self.__tubes.newGame(19, 16, 6)
         r = BallSortGame.getUndoButtonPosition(screenSize)
         for t in [("undo", self.__tubes.undo),
                   ("UNDO", self.__tubes.undoToCheckpoint),
@@ -116,35 +102,7 @@ class BallSortGame:
             r = r.move(0, r.height + BallSortGame.__ButtonMargins)
 
     def __restart(self):
-        screenSize = self.__window.get_rect()
-        balls = BallSortGame.__generateRandomBallSet(16, 3, 6)
-        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize.size), 6, balls)  # type: ignore
-    
-
-    @staticmethod
-    def __generateRandomBallSet(numFilledTubes: int, numEmptyTubes: int, depth: int) -> list[list[int]]:
-        td = numFilledTubes*depth
-        a = [0]*td
-        for i in range(td):
-            a[i] = i % numFilledTubes
-        for i in range(td):
-            swapWith = randint(i,td-1)
-            if swapWith != i:
-                h = a[i]
-                a[i] = a[swapWith]
-                a[swapWith] = h
-        batches: list[list[int]] = []
-        batch: list[int] = []
-        batchCount = 0
-        for i in a:
-            batch.append(i)
-            if len(batch) == depth:
-                batchCount += 1
-                batches.append(batch)
-                batch = []
-        for i in range(numEmptyTubes):
-            batches.append([])
-        return batches
+        self.__tubes.newGame(16, 13, 6)
 
     def main(self) -> None:
         pygame.display.set_caption("Ball Sort")
@@ -153,7 +111,6 @@ class BallSortGame:
 
         closing = False
         while not closing:
-            # event handling, gets all event from the event queue
             unhandledEvents: list[pygame.Event] = []
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:

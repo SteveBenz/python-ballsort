@@ -1,6 +1,7 @@
 import math
+from random import randint
 import time
-from typing import Callable, Iterable, Optional, Tuple
+from typing import Any, Callable, Iterable, Optional, Tuple
 
 import pygame
 from BallGroup import BallGroup
@@ -24,35 +25,73 @@ class TubeSet:
         pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v, pygame.K_b
     )
 
-    def __init__(self, window: pygame.Surface, rect: pygame.Rect, depth: int, balls:Iterable[Iterable[int]]):
+    def __init__(self, window: pygame.Surface, rect: pygame.Rect):
         self.__window = window
-        self.__depth = depth
         self.__rect = rect
-
         self.__tubes: list[Tube] = []
-        i = 0
-        ballsList = list(balls)
-        for tubeRect in TubeSet.__getTubeLayout(rect, len(ballsList), depth):
-            self.__tubes.append(Tube(window, tubeRect, TubeSet.__keyboardHintCharacters[i], depth))
-            i += 1
-
-        i = 0
-        for batch in ballsList:
-            tube = self.__tubes[i]
-            i += 1
-            for color in batch:
-                tube.push(BallGroup(color=color, count=1))
-
         self.__undoStack: list[MoveRecord] = []
         self.__redoStack: list[MoveRecord] = []
         self.__pendingMove: Optional[Tube] = None
     
-    def serialize(self) -> list[list[int]]:
+    def newGame(self, numTubes: int, numColors: int, ballsPerTubes: int) -> None:
+        self.__createEmptyGame(numTubes, ballsPerTubes)
+        a = [0]*numColors*ballsPerTubes
+        td = numColors*ballsPerTubes
+        for i in range(td):
+            a[i] = i % numColors
+        for i in range(td):
+            swapWith = randint(i,td-1)
+            if swapWith != i:
+                h = a[i]
+                a[i] = a[swapWith]
+                a[swapWith] = h
+        for i in range(numColors):
+            for j in range(ballsPerTubes):
+                self.__tubes[i].push(BallGroup(color=a[i*ballsPerTubes+j], count=1))
+
+    def loadGame(self, d: dict[str,Any]) -> None:
+        ballsPerTube = d['ballsPerTube']
+        batches: list[list[int]] = d['balls']
+        self.__createEmptyGame(len(batches), ballsPerTube)
+        for i in range(len(batches)):
+            for color in batches[i]:
+                self.__tubes[i].push(BallGroup(color=color, count=1))
+        self.__undoStack = [self.__parseMoveRecord(r) for r in d['undoStack']]
+        self.__redoStack = [self.__parseMoveRecord(r) for r in d['redoStack']]
+    
+    
+    def __serializeMoveRecord(self, r: MoveRecord) -> dict[str,Any]:
+        d: dict[str,Any] = dict()
+        d['source'] = self.__tubes.index(r.source)
+        d['target'] = self.__tubes.index(r.target)
+        d['count'] = r.count
+        return d
+
+    def __parseMoveRecord(self, r: Any) -> MoveRecord:
+        return MoveRecord(self.__tubes[r['source']], self.__tubes[r['target']], r['count'])
+
+    def __createEmptyGame(self, numTubes: int, ballsPerTube: int) -> None:
+        self.__undoStack = []
+        self.__redoStack = []
+        self.__pendingMove = None
+        self.__depth = ballsPerTube
+        self.__tubes = []
+        i = 0
+        for tubeRect in TubeSet.__getTubeLayout(self.__rect, numTubes, ballsPerTube):
+            self.__tubes.append(Tube(self.__window, tubeRect, TubeSet.__keyboardHintCharacters[i], ballsPerTube))
+            i += 1
+    
+    def serialize(self) -> dict[str,Any]:
+        d: dict[str,Any] = dict()
         batches: list[list[int]] = []
         for t in self.__tubes:
             batches.append(t.serialize())
-        return batches
-
+        d['balls'] = batches
+        d['ballsPerTube'] = self.numBallsPerTube
+        d['undoStack'] = [self.__serializeMoveRecord(s) for s in self.__undoStack]
+        d['redoStack'] = [self.__serializeMoveRecord(s) for s in self.__redoStack]
+        return d
+    
     def reposition(self, rect: pygame.Rect) -> None:
         i = 0
         for l in TubeSet.__getTubeLayout(rect, len(self.__tubes), self.__depth):
@@ -248,7 +287,7 @@ class TubeSet:
             self.animateMove(source, target, moving, True)
             target.push(moving)
             self.__pendingMove = None
-            self.__undoStack.append(MoveRecord(source, target, moving))
+            self.__undoStack.append(MoveRecord(source, target, moving.count))
 
         if self.__pendingMove and self.__pendingMove is selectedTube:
             target = self.tryGetAutoMove(self.__pendingMove)
