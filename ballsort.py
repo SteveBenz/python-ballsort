@@ -70,7 +70,7 @@ class BallSortGame:
         settings = BallSortGame.__load()
         screenSize = (settings['width'], settings['height']) if settings else (800,600)
         self.__window = pygame.display.set_mode(screenSize, pygame.RESIZABLE, display=0)
-        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize))  # type: ignore
+        self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize))
         if settings:
             self.__tubes.loadGame(settings)
         else:

@@ -2,6 +2,9 @@ from typing import Final, Optional, Tuple, Union
 import pygame
 from BallGroup import BallGroup
 from GameColors import GameColors
+from pygame.surface import Surface
+from pygame.rect import Rect
+from pygame.font import Font, SysFont
 
 
 class Tube:
@@ -10,11 +13,11 @@ class Tube:
     # This is horizontal and vertical, but it is a fraction of the total width of the rectangle.
     __SPACE_BETWEEN_BALLS: Final[float] = .1
 
-    __cachedBallImages: list[pygame.Surface] = []
-    __cachedBallImagesHighlighted: list[pygame.Surface] = []
+    __cachedBallImages: list[Surface] = []
+    __cachedBallImagesHighlighted: list[Surface] = []
     __cachedBallImagesRadius: float = -1
 
-    __hintFont: Optional[pygame.font.Font] = None
+    __hintFont: Optional[Font] = None
 
     
     __ballColors = (
@@ -36,13 +39,13 @@ class Tube:
         (169, 169, 169), # dark gray
     )
 
-    def __init__(self, window: pygame.Surface, rect: pygame.Rect, hintKey: str, numBalls: int):
+    def __init__(self, window: Surface, rect: Rect, hintKey: str, numBalls: int):
         if not Tube.__hintFont:
-            Tube.__hintFont = pygame.font.SysFont('arial', 16)
+            Tube.__hintFont = SysFont('arial', 16)
         self.__emptySlots: int = numBalls
         self.__ballGroups: list[BallGroup] = list()
-        self.rect: pygame.Rect = rect
-        self.__window: pygame.Surface = window
+        self.rect: Rect = rect
+        self.__window: Surface = window
         self.__numBalls: int = numBalls
         self.__hintKey = hintKey
 
@@ -120,7 +123,7 @@ class Tube:
         widthIfHeightIsTheDecider = width * height / heightIfWidthIsTheDecider
         return widthIfHeightIsTheDecider, height
 
-    def getBallPosition(self, ballPosition: float) -> pygame.Rect:
+    def getBallPosition(self, ballPosition: float) -> Rect:
         """
         Gets the rectangle where a ball should be drawn to given the current dimensions.  Note that ballPosition
         is a float, and at value 0, it means the top position for a ball in the tube and 1 is the second ball in
@@ -133,17 +136,17 @@ class Tube:
         left = self.rect.left + (spaceBetweenBalls + horizontalSpaceBetweenTubes)/2
         # Counting up from the bottom is less perilous
         top = self.rect.bottom + .5*spaceBetweenBalls - (self.__numBalls - ballPosition)*(radius*2+spaceBetweenBalls)
-        return pygame.Rect(left,top,radius*2,radius*2)
+        return Rect(left,top,radius*2,radius*2)
     
-    def getTubeRectangle(self) -> pygame.Rect:
+    def getTubeRectangle(self) -> Rect:
         b0 = self.getBallPosition(0)
         spacing = self.rect.width*Tube.__SPACE_BETWEEN_BALLS
-        return pygame.Rect(b0.left-spacing/2,b0.top-spacing/2,b0.width+spacing,(self.rect.bottom - b0.top)+spacing/2)
+        return Rect(b0.left-spacing/2,b0.top-spacing/2,b0.width+spacing,(self.rect.bottom - b0.top)+spacing/2)
 
-    def setPosition(self, newPosition: pygame.Rect) -> None:
+    def setPosition(self, newPosition: Rect) -> None:
         self.rect = newPosition
 
-    def getBallImage(self, color: int, isHighlighted: bool) -> pygame.Surface:
+    def getBallImage(self, color: int, isHighlighted: bool) -> Surface:
         radius = self.getBallPosition(0).width/2
         if radius != Tube.__cachedBallImagesRadius:
             Tube.__cachedBallImages = []
@@ -153,11 +156,11 @@ class Tube:
         for i in range(len(Tube.__cachedBallImages), color+1):
             x = radius
             y = radius
-            ballImage = pygame.Surface((2*radius,2*radius), pygame.SRCALPHA)
+            ballImage = Surface((2*radius,2*radius), pygame.SRCALPHA)
             if i % 5 == 0:
                 pygame.draw.circle(ballImage, Tube.__ballColors[i], [x,y], radius)
             elif i % 5 == 1:
-                pygame.draw.rect(ballImage, Tube.__ballColors[i], pygame.Rect(x-radius,y-radius,2*radius,2*radius))
+                pygame.draw.rect(ballImage, Tube.__ballColors[i], Rect(x-radius,y-radius,2*radius,2*radius))
             elif i % 5 == 2:
                 pygame.draw.polygon(ballImage, Tube.__ballColors[i],
                     [(x,y-radius), 
@@ -175,7 +178,7 @@ class Tube:
                     (x+radius,y-radius),
                     (x,y+radius)])
             Tube.__cachedBallImages.append(ballImage)
-            ballImageHighlighted = pygame.Surface(ballImage.get_size(), pygame.SRCALPHA)
+            ballImageHighlighted = Surface(ballImage.get_size(), pygame.SRCALPHA)
             ballImageHighlighted.blit(ballImage, (0,0))
             pygame.draw.circle(ballImageHighlighted, (0,0,0), (radius, radius), radius*.2)
             Tube.__cachedBallImagesHighlighted.append(ballImageHighlighted)

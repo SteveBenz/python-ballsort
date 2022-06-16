@@ -7,6 +7,9 @@ import pygame
 from BallGroup import BallGroup
 from MoveRecord import MoveRecord
 from Tube import Tube
+from pygame.surface import Surface
+from pygame.rect import Rect
+from pygame.event import Event
 
 
 class TubeSet:
@@ -25,7 +28,7 @@ class TubeSet:
         pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v, pygame.K_b
     )
 
-    def __init__(self, window: pygame.Surface, rect: pygame.Rect):
+    def __init__(self, window: Surface, rect: Rect):
         self.__window = window
         self.__rect = rect
         self.__tubes: list[Tube] = []
@@ -92,7 +95,7 @@ class TubeSet:
         d['redoStack'] = [self.__serializeMoveRecord(s) for s in self.__redoStack]
         return d
     
-    def reposition(self, rect: pygame.Rect) -> None:
+    def reposition(self, rect: Rect) -> None:
         i = 0
         for l in TubeSet.__getTubeLayout(rect, len(self.__tubes), self.__depth):
             self.__tubes[i].rect = l
@@ -100,7 +103,7 @@ class TubeSet:
         self.__rect = rect
 
     @staticmethod
-    def __getTubeLayout(rect: pygame.Rect, numTubes: int, numBalls: int) -> Iterable[pygame.Rect]:
+    def __getTubeLayout(rect: Rect, numTubes: int, numBalls: int) -> Iterable[Rect]:
         # Hard-coding to a two-row.  Better if we adjusted it based on the layout
         rows = 2
         columns = (numTubes+1)//2
@@ -110,7 +113,7 @@ class TubeSet:
         for i in range(numTubes):
             row = i // columns
             column = i % columns
-            yield pygame.Rect(width*column + rect.left, height*row + rect.top, width, height)
+            yield Rect(width*column + rect.left, height*row + rect.top, width, height)
 
     def isTubeKeyboardShortcut(self, keyboardId: int) -> bool:
         return keyboardId in TubeSet.__tubeKeys
@@ -206,12 +209,12 @@ class TubeSet:
             return x,y
         return interpolation
     
-    def makeSelectionAnimator(self, selection: Tube, isIncoming: bool) -> Callable[[float], pygame.Rect]:
+    def makeSelectionAnimator(self, selection: Tube, isIncoming: bool) -> Callable[[float], Rect]:
         selectionGroup = selection.peek()
         topBallRectHigh = selection.getBallPosition(selection.emptySlots-.5)
         bottomBallRect = selection.getBallPosition(selection.emptySlots+selectionGroup.count-1)
         animationArea = topBallRectHigh.union(bottomBallRect)
-        background = pygame.Surface(animationArea.size)
+        background = Surface(animationArea.size)
 
         _ = selection.pop(selectionGroup.count)
         selection.draw(
@@ -221,12 +224,12 @@ class TubeSet:
         background.blit(self.__window, (0,0), animationArea)
         selection.push(selectionGroup)
         ballImage = selection.getBallImage(selectionGroup.color, isHighlighted=True)
-        def animation(position: float) -> pygame.Rect:
+        def animation(position: float) -> Rect:
             self.__window.blit(background, animationArea)
             for ballTubePosition in range(selection.emptySlots, selection.emptySlots+selectionGroup.count):
                 target = selection.getBallPosition(ballTubePosition - .5*(position if isIncoming else 1-position))
                 self.__window.blit(ballImage, target)
-            return animationArea  # type: ignore
+            return animationArea
         return animation
     
     def animateSelection(self, newSelection: Optional[Tube], oldSelection: Optional[Tube]) -> None:
@@ -239,7 +242,7 @@ class TubeSet:
             progress = (time.time() - startTime) / animationDuration
             if progress >= 1:
                 progress = 1
-            updateAreas: list[pygame.Rect] = []
+            updateAreas: list[Rect] = []
             if newAnimation:
                 updateAreas.append(newAnimation(progress))
             if oldAnimation:
@@ -249,7 +252,7 @@ class TubeSet:
     def animateMove(self, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
         self.__pendingMove = None
         self.draw()
-        background = pygame.surface.Surface(self.__rect.size)
+        background = Surface(self.__rect.size)
         background.blit(self.__window, (0,0), self.__rect)
         interpolatorFunctions: list[Callable[[float], Tuple[float,float]]] = []
         ballImage = source.getBallImage(moving.color, isHighlighted=False)
@@ -334,7 +337,7 @@ class TubeSet:
         self.setPendingMove(self.tryFindMove(self.__pendingMove))
 
 
-    def update(self, events: list[pygame.event.Event]) -> None:
+    def update(self, events: list[Event]) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.setPendingMove(None)
