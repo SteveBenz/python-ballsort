@@ -1,6 +1,7 @@
 import math
 from random import randint
 import time
+from tkinter import W
 from typing import Any, Callable, Iterable, Optional, Tuple
 
 import pygame
@@ -105,9 +106,18 @@ class TubeSet:
     @staticmethod
     def __getTubeLayout(rect: Rect, numTubes: int, numBalls: int) -> Iterable[Rect]:
         # Hard-coding to a two-row.  Better if we adjusted it based on the layout
-        rows = 2
-        columns = (numTubes+1)//2
-        (width,height) = Tube.getMaxUsableSize((rect.width / columns, rect.height / rows), numBalls)
+        rows:int = 0
+        width = 0
+        height = 0
+        columns = 0
+        while True:
+            r = rows+1
+            c = (numTubes+1)//r
+            (w,h) = Tube.getMaxUsableSize((rect.width / c, rect.height / r), numBalls)
+            if w*h > width*height:
+                (width,height,rows,columns) = (w,h,r,c)
+            else:
+                break
 
         # It'd be better if the extra space was distributed between rows and columns
         for i in range(numTubes):
