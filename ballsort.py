@@ -3,6 +3,7 @@ import time
 from typing import Any, Literal, Optional, Tuple
 import pygame
 from pygame.rect import Rect
+from pygame.event import Event
 import pygame_widgets
 from pygame_widgets.button import Button
 from GameColors import GameColors
@@ -16,6 +17,7 @@ import json
 # TODO:
 # Better like-colors highlight
 # Detect Win and Loss
+# F5 should new-game with the size from last time
 
 
 
@@ -114,12 +116,12 @@ class BallSortGame:
 
         closing = False
         while not closing:
-            unhandledEvents: list[pygame.Event] = []
+            unhandledEvents: list[Event] = []
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     closing = True
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
-                    self.__restart()
+                    self.__restart('medium') # TODO
                 elif event.type == pygame.VIDEORESIZE:
                     self.__onResize()
                 else:
@@ -128,7 +130,7 @@ class BallSortGame:
             self.__window.fill(GameColors.WindowBackground)
             self.__tubes.update(unhandledEvents)
             time.sleep(.01)
-            pygame_widgets.update(unhandledEvents) # type: ignore
+            pygame_widgets.update(unhandledEvents) # type: ignore   <-- looks like a pylance bug
             pygame.display.update()
         self.__save()
 

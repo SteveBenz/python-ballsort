@@ -80,8 +80,13 @@ class Tube:
             self.__ballGroups[0].count -= count
         self.__emptySlots += count
 
-    def get_isEmpty(self) -> bool:
+    @property
+    def isEmpty(self) -> bool:
         return not any(self.__ballGroups)
+    
+    @property
+    def hasMoreThanOneColor(self) -> bool:
+        return len(self.__ballGroups) > 1
 
     def get_isComplete(self) -> bool:
         return self.__emptySlots == self.__numBalls or (len(self.__ballGroups) == 1 and self.__emptySlots == 0)

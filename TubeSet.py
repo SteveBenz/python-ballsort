@@ -141,28 +141,40 @@ class TubeSet:
         emptyValidMove = None
         for t in self.__tubes:
             if source is t: continue
-            if t.get_isEmpty():
+            if t.isEmpty:
                 if emptyValidMove is None:
                     emptyValidMove = t
             elif t.canAddBallGroup(source.peek()):
                 return t
-        return emptyValidMove            
+        return emptyValidMove
+    
+    def __getAllValidMoves(self) -> Iterable[Tube]:
+        # First list out all the moves that don't target empty tubes
+        hasAnyEmptyTubes: bool = False
+        possibleEmptyTubeMoves: list[Tube] = []
+        for source in self.__tubes:
+            if source.isEmpty:
+                hasAnyEmptyTubes = True
+            else:
+                sourcePeek = source.peek()
+                if any(t for t in self.__tubes if t is not source and (not t.isEmpty) and t.canAddBallGroup(sourcePeek)):
+                    yield source
+                elif source.hasMoreThanOneColor:
+                    possibleEmptyTubeMoves.append(source)
+        if hasAnyEmptyTubes:
+            for source in possibleEmptyTubeMoves:
+                yield source
     
     def tryFindMove(self, existingMove: Optional[Tube]) -> Optional[Tube]:
         hitExistingMove = existingMove is None
         firstValidMove = None
-        for source in self.__tubes:
-            if source.get_isEmpty():
-                continue
-            sourcePeek = source.peek()
-            for target in self.__tubes:
-                if target is not source and target.canAddBallGroup(sourcePeek):
-                    if firstValidMove is None:
-                        firstValidMove = source
-                    if source is existingMove:
-                        hitExistingMove = True
-                    elif hitExistingMove:
-                        return source
+        for possibleMove in self.__getAllValidMoves():
+            if hitExistingMove:
+                return possibleMove
+            elif possibleMove is existingMove:
+                hitExistingMove = True
+            elif firstValidMove is None:
+                firstValidMove = possibleMove
         return firstValidMove
 
     def tryFindTubeByPosition(self, position: Tuple[int,int]) -> Optional[Tube]:
@@ -173,7 +185,7 @@ class TubeSet:
     
     @property
     def numEmptyTubes(self) -> int:
-        return sum(1 for t in self.__tubes if t.get_isEmpty())
+        return sum(1 for t in self.__tubes if t.isEmpty)
 
     @property
     def numTotalTubes(self) -> int:
@@ -307,11 +319,11 @@ class TubeSet:
                 actuallyDoMove(self.__pendingMove, target)
             else:
                 self.setPendingMove(None)
-        elif self.__pendingMove is None and selectedTube is not None and not selectedTube.get_isEmpty():
+        elif self.__pendingMove is None and selectedTube is not None and not selectedTube.isEmpty:
             self.setPendingMove(selectedTube)
         elif self.__pendingMove is not None and selectedTube is not None and selectedTube.canAddBallGroupPartial(self.__pendingMove.peek()):
             actuallyDoMove(self.__pendingMove, selectedTube)
-        elif not selectedTube.get_isEmpty():
+        elif not selectedTube.isEmpty:
             self.setPendingMove(selectedTube)
 
     def undo(self):
