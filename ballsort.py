@@ -17,8 +17,8 @@ import json
 # TODO:
 # Better like-colors highlight
 # Detect Win and Loss
-# F5 should new-game with the size from last time
 
+GameSizes = Literal['big', 'small', 'medium']
 
 
 class BallSortGame:
@@ -28,6 +28,7 @@ class BallSortGame:
     __ButtonHeight = 20
 
     __buttons: list[Button] = []
+    __lastSize: GameSizes = 'medium'
 
     @staticmethod
     def getTubesPosition(screenSize: Tuple[float,float]) -> Rect:
@@ -59,6 +60,7 @@ class BallSortGame:
         r = self.__window.get_rect()
         d['width'] = r.width
         d['height'] = r.height
+        d['size'] = self.__lastSize
         
         with open(BallSortGame.__stateFileName, 'w') as stateFile:
             stateFile.write(json.dumps(d, indent=True))
@@ -69,6 +71,7 @@ class BallSortGame:
         screenSize = (settings['width'], settings['height']) if settings else (800,600)
         self.__window = pygame.display.set_mode(screenSize, pygame.RESIZABLE, display=0)
         self.__tubes = TubeSet(self.__window, BallSortGame.getTubesPosition(screenSize))
+        self.__lastSize = settings['size'] if settings else 'medium'
         if settings:
             self.__tubes.loadGame(settings)
         else:
@@ -101,13 +104,14 @@ class BallSortGame:
             self.__setButtonPos(b, r)
             r = r.move(0, r.height + BallSortGame.__ButtonMargins)
 
-    def __restart(self, size: Literal['big', 'small', 'medium']) -> None:
+    def __restart(self, size: GameSizes) -> None:
         if size == 'big':
             self.__tubes.newGame(16, 13, 6)
         elif size == 'small':
             self.__tubes.newGame(8, 6, 4)
         else:
             self.__tubes.newGame(12, 10, 5)
+        self.__lastSize = size
 
     def main(self) -> None:
         pygame.display.set_caption("Ball Sort")
@@ -121,7 +125,7 @@ class BallSortGame:
                 if event.type == pygame.QUIT:
                     closing = True
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
-                    self.__restart('medium') # TODO
+                    self.__restart(self.__lastSize)
                 elif event.type == pygame.VIDEORESIZE:
                     self.__onResize()
                 else:
