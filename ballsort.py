@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Optional, Tuple
+from typing import Any, Literal, Optional, Tuple
 import pygame
 from pygame.rect import Rect
 import pygame_widgets
@@ -14,10 +14,6 @@ import json
 #  py -m pip install pygame_widgets
 
 # TODO:
-# Refactor
-#   Fix # Type suppress things
-# Game Size
-# Adjust layout to fit space given
 # Better like-colors highlight
 # Detect Win and Loss
 
@@ -80,7 +76,9 @@ class BallSortGame:
                   ("UNDO", self.__tubes.undoToCheckpoint),
                   ("redo", self.__tubes.redo),
                   ("suggest", self.__tubes.suggest),
-                  ("new", self.__restart)]:
+                  ("new B", lambda: self.__restart('big')),
+                  ("new M", lambda: self.__restart('medium')),
+                  ("new S", lambda: self.__restart('small'))]:
             text, action = t
             self.__buttons.append(
                 Button(self.__window, r.left, r.top, r.width, r.height, **{"text": text, "onClick": action})
@@ -101,8 +99,13 @@ class BallSortGame:
             self.__setButtonPos(b, r)
             r = r.move(0, r.height + BallSortGame.__ButtonMargins)
 
-    def __restart(self):
-        self.__tubes.newGame(16, 13, 6)
+    def __restart(self, size: Literal['big', 'small', 'medium']) -> None:
+        if size == 'big':
+            self.__tubes.newGame(16, 13, 6)
+        elif size == 'small':
+            self.__tubes.newGame(8, 6, 4)
+        else:
+            self.__tubes.newGame(12, 10, 5)
 
     def main(self) -> None:
         pygame.display.set_caption("Ball Sort")

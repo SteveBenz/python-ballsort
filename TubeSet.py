@@ -1,7 +1,6 @@
 import math
 from random import randint
 import time
-from tkinter import W
 from typing import Any, Callable, Iterable, Optional, Tuple
 
 import pygame
