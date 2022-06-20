@@ -5,6 +5,7 @@ from typing import Any, Callable, Iterable, Optional, Tuple
 
 import pygame
 from BallGroup import BallGroup
+from GameColors import GameColors
 from MoveRecord import MoveRecord
 from Tube import Tube
 from pygame.surface import Surface
@@ -48,6 +49,7 @@ class TubeSet:
                 h = a[i]
                 a[i] = a[swapWith]
                 a[swapWith] = h
+        self.animateNewGame(a)
         for i in range(numColors):
             for j in range(ballsPerTubes):
                 self.__tubes[i].push(BallGroup(color=a[i*ballsPerTubes+j], count=1))
@@ -298,6 +300,92 @@ class TubeSet:
                 topLeft = f(progress)
                 self.__window.blit(ballImage, topLeft)
             pygame.display.update(self.__rect)
+
+
+    def animateNewGame(self, balls: list[int]) -> None:
+        self.__window.fill(GameColors.WindowBackground, self.__rect)
+        self.draw()
+        background = Surface(self.__rect.size)
+        background.blit(self.__window, (0,0), self.__rect)
+
+        startTime = time.time()
+
+        timeSpentInTube = .5
+        verticalSpeedInTube = (self.__tubes[0].getBallPosition(self.numBallsPerTube-1).top - self.__tubes[0].getBallPosition(-1).top) / timeSpentInTube
+        def getArrivalTime(depth: int) -> float:
+            return startTime + 1.5 + ((1 + self.numBallsPerTube - depth)/self.numBallsPerTube)*timeSpentInTube
+
+        # What we want to animate is a condition where the balls arrive at the top of the tube
+        # sequentially and thus don't overlap as they go down.
+        class BallPlot:
+            color: int
+            startX: float
+            startY: float
+            topOfTubeX: float
+            topOfTubeY: float
+            finalX: float
+            finalY: float
+            arrivalTimeAtTopOfTube: float
+
+            def getPositionAtTime(self, startTime: float, now: float) -> Tuple[float, float]:
+                if now <= self.arrivalTimeAtTopOfTube:
+                    transitPercentage = (now - startTime)/(self.arrivalTimeAtTopOfTube - startTime)
+                    x = self.startX + (self.topOfTubeX - self.startX) * transitPercentage
+                    y = self.startY + (self.topOfTubeY - self.startY) * transitPercentage
+                    return x,y
+                else:
+                    y = self.topOfTubeY + verticalSpeedInTube * (now - self.arrivalTimeAtTopOfTube)
+                    return self.topOfTubeX, min(y, self.finalY)
+
+        plots: list[BallPlot] = []
+        tube: int = 0
+        depth: int = self.numBallsPerTube-1
+        screenSize = pygame.display.get_window_size()
+        ballSize = self.__tubes[0].getBallImage(0,False).get_size()
+        for color in balls:
+            plot = BallPlot()
+            plot.color = color
+            startEdge = randint(0,3)
+            if startEdge == 0:
+                plot.startX = -ballSize[0]
+                plot.startY = randint(-ballSize[1], screenSize[1])
+            elif startEdge == 1:
+                plot.startX = screenSize[0]
+                plot.startY = randint(-ballSize[1], screenSize[1])
+            elif startEdge == 2:
+                plot.startX = randint(-ballSize[0], screenSize[0])
+                plot.startY = -ballSize[1]
+            else:
+                plot.startX = randint(-ballSize[0], screenSize[0])
+                plot.startY = screenSize[1]
+            tubeTop = self.__tubes[tube].getBallPosition(-1)
+            plot.topOfTubeX = tubeTop[0]
+            plot.topOfTubeY = tubeTop[1]
+            plot.arrivalTimeAtTopOfTube = getArrivalTime(depth)
+            finalPosition = self.__tubes[tube].getBallPosition(depth)
+            plot.finalX = finalPosition[0]
+            plot.finalY = finalPosition[1]
+            plots.append(plot)
+            if depth == 0:
+                depth = self.numBallsPerTube-1
+                tube += 1
+            else:
+                depth -= 1
+
+        numArrived = 0
+        while numArrived < len(plots):
+            self.__window.blit(background, self.__rect.topleft)
+            now = time.time()
+            numArrived = 0
+            for plot in plots:
+                ballImage = self.__tubes[0].getBallImage(plot.color, isHighlighted=False)
+                topLeft = plot.getPositionAtTime(startTime, now)
+                self.__window.blit(ballImage, topLeft)
+                if topLeft[0] == plot.finalX and topLeft[1] == plot.finalY:
+                    numArrived += 1
+            pygame.display.update(self.__rect)
+            time.sleep(.01)
+
 
     def setPendingMove(self, selectedTube: Optional[Tube]) -> None:
         if selectedTube is not self.__pendingMove:
