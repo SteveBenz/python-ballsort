@@ -1,5 +1,6 @@
 import math
-from random import randint
+from random import randint, randrange
+from secrets import randbelow
 import time
 from typing import Any, Callable, Iterable, Optional, Tuple
 
@@ -305,8 +306,9 @@ class TubeSet:
     def animateNewGame(self, balls: list[int]) -> None:
         self.__window.fill(GameColors.WindowBackground, self.__rect)
         self.draw()
-        background = Surface(self.__rect.size)
-        background.blit(self.__window, (0,0), self.__rect)
+        screenSize = self.__window.get_size()
+        background = Surface(screenSize)
+        background.blit(self.__window, (0,0), self.__window.get_rect())
 
         startTime = time.time()
 
@@ -340,8 +342,8 @@ class TubeSet:
         plots: list[BallPlot] = []
         tube: int = 0
         depth: int = self.numBallsPerTube-1
-        screenSize = pygame.display.get_window_size()
         ballSize = self.__tubes[0].getBallImage(0,False).get_size()
+        tubeArrivalTime = randrange(0,20)/10
         for color in balls:
             plot = BallPlot()
             plot.color = color
@@ -361,20 +363,21 @@ class TubeSet:
             tubeTop = self.__tubes[tube].getBallPosition(-1)
             plot.topOfTubeX = tubeTop[0]
             plot.topOfTubeY = tubeTop[1]
-            plot.arrivalTimeAtTopOfTube = getArrivalTime(depth)
+            plot.arrivalTimeAtTopOfTube = getArrivalTime(depth) + tubeArrivalTime
             finalPosition = self.__tubes[tube].getBallPosition(depth)
             plot.finalX = finalPosition[0]
             plot.finalY = finalPosition[1]
             plots.append(plot)
             if depth == 0:
                 depth = self.numBallsPerTube-1
+                tubeArrivalTime = randrange(0,20)/10
                 tube += 1
             else:
                 depth -= 1
 
         numArrived = 0
         while numArrived < len(plots):
-            self.__window.blit(background, self.__rect.topleft)
+            self.__window.blit(background, (0,0))
             now = time.time()
             numArrived = 0
             for plot in plots:
@@ -383,7 +386,7 @@ class TubeSet:
                 self.__window.blit(ballImage, topLeft)
                 if topLeft[0] == plot.finalX and topLeft[1] == plot.finalY:
                     numArrived += 1
-            pygame.display.update(self.__rect)
+            pygame.display.update()
             time.sleep(.01)
 
 
