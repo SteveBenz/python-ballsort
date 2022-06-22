@@ -1,6 +1,6 @@
 import math
 from random import randint, randrange
-from secrets import randbelow
+import random
 import time
 from typing import Any, Callable, Iterable, Optional, Tuple
 
@@ -31,6 +31,7 @@ class TubeSet:
     )
 
     def __init__(self, window: Surface, rect: Rect):
+        random.seed(1)
         self.__window = window
         self.__rect = rect
         self.__tubes: list[Tube] = []
@@ -39,6 +40,14 @@ class TubeSet:
         self.__pendingMove: Optional[Tube] = None
     
     def newGame(self, numTubes: int, numColors: int, ballsPerTubes: int) -> None:
+        a: list[int] = []
+        for t in self.__tubes:
+            a += [-1 for _ in range(t.emptySlots)]
+            while not t.isEmpty:
+                g = t.pop(None)
+                a += [g.color for _ in range(g.count)]
+        self.animateEraseGame(a)
+
         self.__createEmptyGame(numTubes, ballsPerTubes)
         a = [0]*numColors*ballsPerTubes
         td = numColors*ballsPerTubes
@@ -272,6 +281,7 @@ class TubeSet:
             if oldAnimation:
                 updateAreas.append(oldAnimation(progress))
             pygame.display.update(updateAreas)  # type: ignore   Looks like a pylance bug
+            time.sleep(.01)
 
     def animateMove(self, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
         self.__pendingMove = None
@@ -301,6 +311,7 @@ class TubeSet:
                 topLeft = f(progress)
                 self.__window.blit(ballImage, topLeft)
             pygame.display.update(self.__rect)
+            time.sleep(.01)
 
 
     def animateNewGame(self, balls: list[int]) -> None:
@@ -315,7 +326,7 @@ class TubeSet:
         timeSpentInTube = .5
         verticalSpeedInTube = (self.__tubes[0].getBallPosition(self.numBallsPerTube-1).top - self.__tubes[0].getBallPosition(-1).top) / timeSpentInTube
         def getArrivalTime(depth: int) -> float:
-            return startTime + 1.5 + ((1 + self.numBallsPerTube - depth)/self.numBallsPerTube)*timeSpentInTube
+            return startTime + .25 + ((1 + self.numBallsPerTube - depth)/self.numBallsPerTube)*timeSpentInTube
 
         # What we want to animate is a condition where the balls arrive at the top of the tube
         # sequentially and thus don't overlap as they go down.
@@ -387,8 +398,78 @@ class TubeSet:
                 if topLeft[0] == plot.finalX and topLeft[1] == plot.finalY:
                     numArrived += 1
             pygame.display.update()
+            pygame.event.pump()
             time.sleep(.01)
 
+
+    def animateEraseGame(self, balls: list[int]) -> None:
+        self.__window.fill(GameColors.WindowBackground, self.__rect)
+        self.draw()
+        screenSize = self.__window.get_size()
+        background = Surface(screenSize)
+        background.blit(self.__window, (0,0), self.__window.get_rect())
+
+        startTime = time.time()
+
+        escapeMultiplier = 12
+
+        # What we want to animate is a condition where the balls arrive at the top of the tube
+        # sequentially and thus don't overlap as they go down.
+        class BallPlot:
+            color: int
+            startX: float
+            startY: float
+            jiggleDuration: float
+            dX: float
+            dY: float
+
+            def getPositionAtTime(self, startTime: float, now: float) -> Tuple[float, float]:
+                elapsedTime = now - startTime
+                if elapsedTime > self.jiggleDuration:
+                    elapsedSinceJiggle = elapsedTime-self.jiggleDuration
+                    return self.startX + self.dX * elapsedSinceJiggle * escapeMultiplier, self.startY + self.dY * elapsedSinceJiggle * escapeMultiplier
+                else:
+                    amplitude = math.sin(math.pi*6*elapsedTime/self.jiggleDuration)*elapsedTime/self.jiggleDuration
+                    return self.startX + self.dX * amplitude, self.startY + self.dY * amplitude
+
+        plots: list[BallPlot] = []
+        tube: int = 0
+        depth: int = 0
+        ballSize = self.__tubes[0].getBallImage(0,False).get_size()
+        for color in balls:
+            if color >= 0:
+                plot = BallPlot()
+                plot.color = color
+                startPosition = self.__tubes[tube].getBallPosition(depth)
+                plot.startX = startPosition[0]
+                plot.startY = startPosition[1]
+                plot.dX = ballSize[0] * randrange(50,100)/100 * (randint(0,1)*2-1)
+                plot.dY = ballSize[1] * randrange(50,100)/100 * (randint(0,1)*2-1)
+                plot.jiggleDuration = .75 * randrange(50,100)/100
+                plots.append(plot)
+            depth += 1
+            if depth == self.numBallsPerTube:
+                depth = 0
+                tube += 1
+        
+        def isOffScreen(x: float, y: float) -> bool:
+            return x < -ballSize[0] or x > screenSize[0] or y < -ballSize[0] or y > screenSize[1]
+
+        numArrived = 0
+        while numArrived < len(plots):
+            self.__window.blit(background, (0,0))
+            now = time.time()
+            numArrived = 0
+            for plot in plots:
+                ballImage = self.__tubes[0].getBallImage(plot.color, isHighlighted=False)
+                topLeft = plot.getPositionAtTime(startTime, now)
+                if isOffScreen(*topLeft):
+                    numArrived += 1
+                else:
+                    self.__window.blit(ballImage, topLeft)
+            pygame.event.pump()
+            pygame.display.update()
+            time.sleep(.01)
 
     def setPendingMove(self, selectedTube: Optional[Tube]) -> None:
         if selectedTube is not self.__pendingMove:
