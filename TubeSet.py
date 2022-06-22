@@ -1,4 +1,5 @@
 import math
+from operator import truediv
 from random import randint, randrange
 import random
 import time
@@ -206,6 +207,13 @@ class TubeSet:
     @property
     def numBallsPerTube(self) -> int:
         return self.__depth
+
+    @property
+    def isWin(self) -> bool:
+        for t in self.__tubes:
+            if not t.isComplete:
+                return False
+        return True
 
     @staticmethod
     def interpolatePosition(start: Tuple[float,float], end: Tuple[float,float], progress: float) -> Tuple[float,float]:

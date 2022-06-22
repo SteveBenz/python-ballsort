@@ -89,7 +89,8 @@ class Tube:
     def hasMoreThanOneColor(self) -> bool:
         return len(self.__ballGroups) > 1
 
-    def get_isComplete(self) -> bool:
+    @property
+    def isComplete(self) -> bool:
         return self.__emptySlots == self.__numBalls or (len(self.__ballGroups) == 1 and self.__emptySlots == 0)
 
     def canAddBallGroup(self, group: BallGroup) -> bool:

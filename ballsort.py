@@ -133,6 +133,9 @@ class BallSortGame:
 
             self.__window.fill(GameColors.WindowBackground)
             self.__tubes.update(unhandledEvents)
+            if self.__tubes.isWin:
+                self.__restart(self.__lastSize)
+
             time.sleep(.01)
             pygame_widgets.update(unhandledEvents) # type: ignore   <-- looks like a pylance bug
             pygame.display.update()
