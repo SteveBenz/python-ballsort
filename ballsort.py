@@ -75,7 +75,7 @@ class BallSortGame:
         if settings:
             self.__tubes.loadGame(settings)
         else:
-            self.__tubes.newGame(19, 16, 6)
+            self.__tubes.newGame(19, 16, 8)
         r = BallSortGame.getUndoButtonPosition(screenSize)
         for t in [("undo", self.__tubes.undo),
                   ("UNDO", self.__tubes.undoToCheckpoint),
@@ -106,7 +106,7 @@ class BallSortGame:
 
     def __restart(self, size: GameSizes) -> None:
         if size == 'big':
-            self.__tubes.newGame(16, 13, 6)
+            self.__tubes.newGame(16, 13, 8)
         elif size == 'small':
             self.__tubes.newGame(8, 6, 4)
         else:
