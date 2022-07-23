@@ -1,5 +1,4 @@
 import math
-from operator import truediv
 from random import randint, randrange
 import random
 import time
@@ -32,14 +31,13 @@ class TubeSet:
     )
 
     def __init__(self, window: Surface, rect: Rect):
-        random.seed(1)
         self.__window = window
         self.__rect = rect
         self.__tubes: list[Tube] = []
         self.__undoStack: list[MoveRecord] = []
         self.__redoStack: list[MoveRecord] = []
         self.__pendingMove: Optional[Tube] = None
-    
+
     def newGame(self, numTubes: int, numColors: int, ballsPerTubes: int) -> None:
         a: list[int] = []
         for t in self.__tubes:
