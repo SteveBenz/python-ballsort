@@ -287,6 +287,7 @@ class TubeSet:
             if oldAnimation:
                 updateAreas.append(oldAnimation(progress))
             pygame.display.update(updateAreas)  # type: ignore   Looks like a pylance bug
+            pygame.event.pump()
             time.sleep(.01)
 
     def animateMove(self, source: Tube, target: Tube, moving: BallGroup, sourceIsSelected: bool) -> None:
@@ -317,6 +318,7 @@ class TubeSet:
                 topLeft = f(progress)
                 self.__window.blit(ballImage, topLeft)
             pygame.display.update(self.__rect)
+            pygame.event.pump()
             time.sleep(.01)
 
 
