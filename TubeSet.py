@@ -136,7 +136,7 @@ class TubeSet:
             yield Rect(width*column + rect.left, height*row + rect.top, width, height)
 
     def isTubeKeyboardShortcut(self, keyboardId: int) -> bool:
-        return keyboardId in TubeSet.__tubeKeys
+        return keyboardId in TubeSet.__tubeKeys and TubeSet.__tubeKeys.index(keyboardId) < len(self.__tubes)
 
     def getTubeForKeyStroke(self, keyboardId: int) -> Tube:
         return self.__tubes[TubeSet.__tubeKeys.index(keyboardId)]
