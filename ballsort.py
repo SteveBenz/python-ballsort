@@ -117,11 +117,16 @@ class BallSortGame:
         pygame.display.set_caption("Ball Sort")
         pygame.display.set_icon(pygame.image.load("icon.png"))
         pygame.display.update()
+        timeoutInterval = 5 * 60 # After five minutes of inactivity, shut down.
 
         closing = False
+        timeout = time.time() + timeoutInterval
         while not closing:
             unhandledEvents: list[Event] = []
             for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                    timeout = time.time() + timeoutInterval
+    
                 if event.type == pygame.QUIT:
                     closing = True
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_F5:
@@ -130,6 +135,9 @@ class BallSortGame:
                     self.__onResize()
                 else:
                     unhandledEvents.append(event)
+
+            if time.time() > timeout:
+                closing = True
 
             self.__window.fill(GameColors.WindowBackground)
             self.__tubes.update(unhandledEvents)
